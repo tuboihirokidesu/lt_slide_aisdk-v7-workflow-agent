@@ -62,60 +62,60 @@ layout: default
 
 # Table of Contents
 
-<div class="grid grid-cols-4 gap-x-8 gap-y-3 mt-4">
+<div class="grid grid-cols-3 gap-x-10 gap-y-5 mt-5">
 
-<div class="border-t-2 border-black pt-2">
-  <div class="mm-folio mb-0.5 text-[10px]">00 · Aside</div>
-  <div class="mm-italic text-lg">Versioning</div>
-  <div class="text-xs opacity-70">Minor が常に 0 な理由</div>
+<div class="border-t-2 border-black pt-3">
+  <div class="mm-folio mb-1">00 · Aside</div>
+  <div class="mm-italic text-xl">Versioning</div>
+  <div class="text-sm opacity-70">Minor が常に 0 な理由</div>
 </div>
 
-<div class="border-t-2 border-black pt-2">
-  <div class="mm-folio mb-0.5 text-[10px]">01 · Chapter</div>
-  <div class="mm-italic text-lg">Durability</div>
-  <div class="text-xs opacity-70">なぜ Durable Agent か</div>
+<div class="border-t-2 border-black pt-3">
+  <div class="mm-folio mb-1">01 · Chapter</div>
+  <div class="mm-italic text-xl">Durability</div>
+  <div class="text-sm opacity-70">なぜ Durable Agent か</div>
 </div>
 
-<div class="border-t-2 border-black pt-2">
-  <div class="mm-folio mb-0.5 text-[10px]">02 · Chapter</div>
-  <div class="mm-italic text-lg">Usage</div>
-  <div class="text-xs opacity-70">WorkflowAgent の使い方</div>
+<div class="border-t-2 border-black pt-3">
+  <div class="mm-folio mb-1">02 · Chapter</div>
+  <div class="mm-italic text-xl">Usage</div>
+  <div class="text-sm opacity-70">WorkflowAgent の使い方</div>
 </div>
 
-<div class="border-t-2 border-black pt-2">
-  <div class="mm-folio mb-0.5 text-[10px]">03 · Interlude</div>
-  <div class="mm-italic text-lg">Directives</div>
-  <div class="text-xs opacity-70">'use workflow' の系譜</div>
+<div class="border-t-2 border-black pt-3">
+  <div class="mm-folio mb-1">03 · Interlude</div>
+  <div class="mm-italic text-xl">Directives</div>
+  <div class="text-sm opacity-70">'use workflow' の系譜</div>
 </div>
 
-<div class="border-t-2 border-black pt-2">
-  <div class="mm-folio mb-0.5 text-[10px]">04 · Chapter</div>
-  <div class="mm-italic text-lg">Catalog</div>
-  <div class="text-xs opacity-70">v7 の他の新機能</div>
+<div class="border-t-2 border-black pt-3">
+  <div class="mm-folio mb-1">04 · Chapter</div>
+  <div class="mm-italic text-xl">Catalog</div>
+  <div class="text-sm opacity-70">v7 の他の新機能</div>
 </div>
 
-<div class="border-t-2 border-black pt-2">
-  <div class="mm-folio mb-0.5 text-[10px]">05 · Chapter</div>
-  <div class="mm-italic text-lg">Weakness</div>
-  <div class="text-xs opacity-70">現実的な弱点</div>
+<div class="border-t-2 border-black pt-3">
+  <div class="mm-folio mb-1">05 · Chapter</div>
+  <div class="mm-italic text-xl">Weakness</div>
+  <div class="text-sm opacity-70">現実的な弱点</div>
 </div>
 
-<div class="border-t-2 border-black pt-2">
-  <div class="mm-folio mb-0.5 text-[10px]">06 · Chapter</div>
-  <div class="mm-italic text-lg">Roadmap</div>
-  <div class="text-xs opacity-70">何を採用すべきか</div>
+<div class="border-t-2 border-black pt-3">
+  <div class="mm-folio mb-1">06 · Chapter</div>
+  <div class="mm-italic text-xl">Roadmap</div>
+  <div class="text-sm opacity-70">何を採用すべきか</div>
 </div>
 
-<div class="border-t-2 border-black pt-2">
-  <div class="mm-folio mb-0.5 text-[10px]">07 · Case Study</div>
-  <div class="mm-italic text-lg">Migration</div>
-  <div class="text-xs opacity-70">AI Workspace への適用</div>
+<div class="border-t-2 border-black pt-3">
+  <div class="mm-folio mb-1">07 · Case Study</div>
+  <div class="mm-italic text-xl">Migration</div>
+  <div class="text-sm opacity-70">AI Workspace への適用</div>
 </div>
 
-<div class="border-t-2 border-black pt-2">
-  <div class="mm-folio mb-0.5 text-[10px]">— · Endmatter</div>
-  <div class="mm-italic text-lg">Summary</div>
-  <div class="text-xs opacity-70">結語と参考文献</div>
+<div class="border-t-2 border-black pt-3">
+  <div class="mm-folio mb-1">— · Endmatter</div>
+  <div class="mm-italic text-xl">Summary</div>
+  <div class="text-sm opacity-70">結語と参考文献</div>
 </div>
 
 </div>
@@ -347,11 +347,7 @@ layout: default
 
 # ワークフロー関数側
 
-```ts {all|1-3|5-8|10|14-22|24-27|all}
-import { WorkflowAgent, type ModelCallStreamPart } from '@ai-sdk/workflow'
-import { convertToModelMessages, tool, type UIMessage } from 'ai'
-import { getWritable } from 'workflow'
-
+```ts {all|1-4|6-8|10-17|19-22|all}
 async function bookFlightStep(input) {
   'use step'
   return bookFlight(input)
@@ -359,22 +355,17 @@ async function bookFlightStep(input) {
 
 export async function chat(messages: UIMessage[]) {
   'use workflow'
-
   const modelMessages = await convertToModelMessages(messages)
-
   const agent = new WorkflowAgent({
     model: 'anthropic/claude-sonnet-4-6',
-    instructions: 'You are a flight booking assistant.',
     tools: {
-      searchFlights: tool({ /* ... */ execute: searchFlightsStep }),
+      searchFlights: tool({ execute: searchFlightsStep }),
       bookFlight: tool({
-        /* ... */
         needsApproval: true,
         execute: bookFlightStep,
       }),
     },
   })
-
   const result = await agent.stream({
     messages: modelMessages,
     writable: getWritable<ModelCallStreamPart>(),
@@ -1316,48 +1307,48 @@ layout: default
 
 # Takeaways
 
-<div class="grid grid-cols-3 gap-x-10 gap-y-3 mt-4">
+<div class="grid grid-cols-3 gap-x-10 gap-y-4 mt-5">
 
 <div>
 <div class="mm-folio mb-1">01</div>
-<div class="mm-italic text-2xl">Versioning</div>
-<div class="text-base">Minor は「ブログを書く節目」専用。開発自体は Patch でアクティブ</div>
+<div class="mm-italic text-xl">Versioning</div>
+<div class="text-sm">Minor は「ブログを書く節目」専用。開発自体は Patch でアクティブ</div>
 </div>
 
 <div>
 <div class="mm-folio mb-1">02</div>
-<div class="mm-italic text-2xl">WorkflowAgent</div>
-<div class="text-base">ToolLoopAgent の durable 版。永続化・再開・承認を任せられる</div>
+<div class="mm-italic text-xl">WorkflowAgent</div>
+<div class="text-sm">ToolLoopAgent の durable 版。永続化・再開・承認を任せられる</div>
 </div>
 
 <div>
 <div class="mm-folio mb-1">03</div>
-<div class="mm-italic text-2xl">Directives</div>
-<div class="text-base">React 起源の系譜が膨張。だが Workflow SDK は Worlds で portable</div>
+<div class="mm-italic text-xl">Directives</div>
+<div class="text-sm">React 起源の系譜が膨張。だが Workflow SDK は Worlds で portable</div>
 </div>
 
 <div>
 <div class="mm-folio mb-1">04</div>
-<div class="mm-italic text-2xl">v7 Catalog</div>
-<div class="text-base">Subagents / 型付き context / 承認 API / callOptionsSchema / Memory</div>
+<div class="mm-italic text-xl">v7 Catalog</div>
+<div class="text-sm">Subagents / 型付き context / 承認 API / callOptionsSchema / Memory</div>
 </div>
 
 <div>
 <div class="mm-folio mb-1">05</div>
-<div class="mm-italic text-2xl">Strategy</div>
-<div class="text-base">ToolLoopAgent で開発 → 必要なら WorkflowAgent + 任意 World</div>
+<div class="mm-italic text-xl">Strategy</div>
+<div class="text-sm">ToolLoopAgent で開発 → 必要なら WorkflowAgent + 任意 World</div>
 </div>
 
 <div>
 <div class="mm-folio mb-1">06</div>
-<div class="mm-italic text-2xl">Migration</div>
-<div class="text-base">AI Workspace の気合いコードは WorkflowAgent で体系的に縮退する</div>
+<div class="mm-italic text-xl">Migration</div>
+<div class="text-sm">AI Workspace の気合いコードは WorkflowAgent で体系的に縮退する</div>
 </div>
 
 <div>
 <div class="mm-folio mb-1">07</div>
-<div class="mm-italic text-2xl">Discipline</div>
-<div class="text-base">LLM の「最新動向」要約は必ず一次情報で裏取りする — 自分の主張も含めて</div>
+<div class="mm-italic text-xl">Discipline</div>
+<div class="text-sm">LLM の「最新動向」要約は必ず一次情報で裏取りする — 自分の主張も含めて</div>
 </div>
 
 </div>

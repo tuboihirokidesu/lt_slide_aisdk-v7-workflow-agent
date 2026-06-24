@@ -6,10 +6,12 @@
 :root {
   --mm-bg:           #FFFFFF;
   --mm-fg:           #000000;
-  --mm-muted:        #F5F5F5;
-  --mm-muted-fg:     #525252;
+  --mm-soft-fg:      #1C1C1C;
+  --mm-muted:        #F6F6F4;
+  --mm-muted-fg:     #404040;
+  --mm-code-bg:      #FAFAF8;
   --mm-border:       #000000;
-  --mm-border-light: #E5E5E5;
+  --mm-border-light: #D8D8D3;
 
   /* Override Slidev's theme tokens */
   --slidev-theme-primary: #000000;
@@ -31,6 +33,7 @@ html, body, #app {
   color: var(--mm-fg);
   font-family: 'Source Serif 4', 'Source Serif Pro', Georgia, serif;
   font-feature-settings: 'kern', 'liga', 'calt';
+  line-height: 1.52;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -50,17 +53,17 @@ html, body, #app {
 .slidev-layout h6 {
   font-family: 'Playfair Display', Georgia, serif !important;
   font-weight: 700;
-  line-height: 1;
-  letter-spacing: -0.025em;
+  line-height: 1.06;
+  letter-spacing: 0;
   color: var(--mm-fg);
+  text-wrap: balance;
 }
 
 .slidev-layout h1 {
-  font-size: 2.75rem;
-  letter-spacing: -0.04em;
-  margin-bottom: 0.85rem;
-  padding-bottom: 0.5rem;
-  border-bottom: 3px solid var(--mm-fg);
+  font-size: 2.48rem;
+  margin-bottom: 0.9rem;
+  padding-bottom: 0.42rem;
+  border-bottom: 2px solid var(--mm-fg);
 }
 
 .slidev-layout h2 {
@@ -75,9 +78,10 @@ html, body, #app {
 .slidev-layout p,
 .slidev-layout li {
   font-family: 'Source Serif 4', Georgia, serif;
-  font-size: 0.95rem;
-  line-height: 1.45;
-  margin: 0.25rem 0;
+  font-size: 1.05rem;
+  line-height: 1.55;
+  margin: 0.32rem 0;
+  color: var(--mm-soft-fg);
 }
 
 /* ---------- Cover layout ---------- */
@@ -91,9 +95,9 @@ html, body, #app {
 }
 
 .slidev-layout.cover h1 {
-  font-size: 9rem;
+  font-size: 8.25rem;
   font-style: italic;
-  letter-spacing: -0.06em;
+  letter-spacing: 0;
   border: none;
   padding: 0;
   margin: 0;
@@ -101,9 +105,9 @@ html, body, #app {
 
 .slidev-layout.cover p {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 0.875rem;
+  font-size: 0.92rem;
   text-transform: uppercase;
-  letter-spacing: 0.2em;
+  letter-spacing: 0;
 }
 
 /* ---------- Section dividers — INVERTED ---------- */
@@ -118,9 +122,9 @@ html, body, #app {
 }
 
 .slidev-layout.section h1 {
-  font-size: 7rem;
+  font-size: 5.9rem;
   font-style: italic;
-  letter-spacing: -0.05em;
+  letter-spacing: 0;
   color: var(--mm-bg) !important;
   border-bottom: 4px solid var(--mm-bg);
   padding-bottom: 1rem;
@@ -140,7 +144,7 @@ html, body, #app {
 }
 
 .slidev-layout.center h1 {
-  font-size: 6rem;
+  font-size: 5.3rem;
   font-style: italic;
   border-bottom: none;
   text-align: center;
@@ -158,7 +162,7 @@ html, body, #app {
 }
 
 .slidev-layout.end h1 {
-  font-size: 9rem;
+  font-size: 7.7rem;
   font-style: italic;
   color: var(--mm-bg) !important;
   border: none;
@@ -175,22 +179,22 @@ html, body, #app {
 
 .slidev-layout table th {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 0.65rem;
+  font-size: 0.72rem;
   text-transform: uppercase;
-  letter-spacing: 0.12em;
+  letter-spacing: 0;
   font-weight: 600;
   background: var(--mm-fg);
   color: var(--mm-bg);
   border: 1px solid var(--mm-fg);
-  padding: 0.4rem 0.6rem;
+  padding: 0.48rem 0.68rem;
   text-align: left;
 }
 
 .slidev-layout table td {
   border: 1px solid var(--mm-fg);
-  padding: 0.35rem 0.6rem;
-  font-size: 0.8rem;
-  line-height: 1.35;
+  padding: 0.48rem 0.68rem;
+  font-size: 0.92rem;
+  line-height: 1.43;
   vertical-align: top;
 }
 
@@ -204,13 +208,15 @@ html, body, #app {
 .slidev-layout pre.shiki,
 .slidev-layout .slidev-code,
 .slidev-layout div[class*="language-"] {
-  background: var(--mm-bg) !important;
+  background: var(--mm-code-bg) !important;
   border: 1px solid var(--mm-fg) !important;
   font-family: 'JetBrains Mono', monospace !important;
-  font-size: 11px !important;
-  line-height: 1.3 !important;
-  padding: 8px 12px !important;
-  margin: 0.3rem 0 !important;
+  font-size: 11.35px !important;
+  line-height: 1.36 !important;
+  padding: 9px 12px !important;
+  margin: 0.35rem 0 !important;
+  max-height: 32rem;
+  overflow: auto;
 }
 
 .slidev-layout pre.shiki code,
@@ -255,8 +261,8 @@ html, body, #app {
   font-family: 'JetBrains Mono', monospace !important;
   background: var(--mm-muted) !important;
   border: 1px solid var(--mm-border-light) !important;
-  padding: 0.05em 0.35em !important;
-  font-size: 0.9em !important;
+  padding: 0.08em 0.36em !important;
+  font-size: 0.92em !important;
 }
 
 /* ---------- Horizontal rule ---------- */
@@ -275,7 +281,7 @@ html, body, #app {
   padding: 0.5rem 0 0.5rem 1.5rem;
   font-family: 'Playfair Display', Georgia, serif !important;
   font-style: italic;
-  font-size: 1.5rem;
+  font-size: 1.6rem;
   line-height: 1.4;
   color: var(--mm-fg);
   margin: 1.5rem 0;
@@ -306,15 +312,15 @@ html, body, #app {
 
 .slidev-layout ul,
 .slidev-layout ol {
-  padding-left: 1.2rem;
-  margin: 0.4rem 0;
+  padding-left: 1.25rem;
+  margin: 0.55rem 0;
 }
 
 .slidev-layout ul > li {
   list-style: none;
   position: relative;
   padding-left: 1.2rem;
-  margin: 0.2rem 0;
+  margin: 0.36rem 0;
 }
 
 .slidev-layout ul > li::before {
@@ -375,6 +381,7 @@ div.mermaid svg [class*="text"] {
   fill: var(--mm-fg) !important;
   color: var(--mm-fg) !important;
   font-family: 'JetBrains Mono', monospace !important;
+  font-size: 14px !important;
 }
 
 div.mermaid svg path[class*="edge"],
@@ -383,7 +390,7 @@ div.mermaid svg [class*="actor-line"],
 div.mermaid svg line[class*="messageLine"] {
   stroke: var(--mm-fg) !important;
   fill: none !important;
-  stroke-width: 1.5px !important;
+  stroke-width: 1.75px !important;
 }
 
 div.mermaid svg [class*="arrowhead"] path,
@@ -440,7 +447,7 @@ div.mermaid svg rect.activation2 {
     #000 2px
   );
   background-size: 100% 4px;
-  opacity: 0.012;
+  opacity: 0.006;
   z-index: 0;
 }
 
@@ -459,7 +466,7 @@ div.mermaid svg rect.activation2 {
     #FFFFFF 2px
   );
   background-size: 4px 100%;
-  opacity: 0.04;
+  opacity: 0.025;
 }
 
 .slidev-layout.end::before {
@@ -475,9 +482,9 @@ div.mermaid svg rect.activation2 {
 
 .mm-eyebrow {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 0.75rem;
+  font-size: 0.86rem;
   text-transform: uppercase;
-  letter-spacing: 0.2em;
+  letter-spacing: 0;
   color: var(--mm-muted-fg);
 }
 
@@ -488,8 +495,8 @@ div.mermaid svg rect.activation2 {
 
 .mm-meta {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 0.875rem;
-  letter-spacing: 0.05em;
+  font-size: 0.95rem;
+  letter-spacing: 0;
   color: var(--mm-muted-fg);
 }
 
@@ -501,13 +508,55 @@ div.mermaid svg rect.activation2 {
 .mm-display {
   font-family: 'Playfair Display', Georgia, serif;
   font-weight: 700;
-  letter-spacing: -0.04em;
-  line-height: 0.95;
+  letter-spacing: 0;
+  line-height: 1;
 }
 
 .mm-folio {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 0.75rem;
-  letter-spacing: 0.2em;
+  font-size: 0.84rem;
+  letter-spacing: 0;
   text-transform: uppercase;
+}
+
+/* ---------- Readability overrides for utility-heavy slides ---------- */
+
+.slidev-layout .text-\[10px\] {
+  font-size: 0.76rem !important;
+  line-height: 1.35 !important;
+}
+
+.slidev-layout .text-xs {
+  font-size: 0.82rem !important;
+  line-height: 1.45 !important;
+}
+
+.slidev-layout .text-sm {
+  font-size: 0.96rem !important;
+  line-height: 1.5 !important;
+}
+
+.slidev-layout .text-base {
+  font-size: 1.08rem !important;
+  line-height: 1.5 !important;
+}
+
+.slidev-layout .text-lg {
+  font-size: 1.24rem !important;
+  line-height: 1.35 !important;
+}
+
+.slidev-layout .text-xl {
+  font-size: 1.45rem !important;
+  line-height: 1.22 !important;
+}
+
+.slidev-layout .text-2xl {
+  font-size: 1.64rem !important;
+  line-height: 1.16 !important;
+}
+
+.slidev-layout .opacity-60,
+.slidev-layout .opacity-70 {
+  opacity: 0.86 !important;
 }
