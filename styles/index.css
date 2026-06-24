@@ -202,7 +202,7 @@ html, body, #app {
   background: var(--mm-muted);
 }
 
-/* ---------- Code blocks (Shiki) — monochrome override ---------- */
+/* ---------- Code blocks (Shiki) — restrained editorial highlight ---------- */
 
 .slidev-layout pre,
 .slidev-layout pre.shiki,
@@ -219,30 +219,40 @@ html, body, #app {
   overflow: auto;
 }
 
-.slidev-layout pre.shiki code,
-.slidev-layout .shiki span {
-  color: var(--mm-fg) !important;
+.slidev-layout pre.shiki code {
+  background: transparent !important;
+  color: var(--mm-fg);
+  font-family: 'JetBrains Mono', monospace !important;
+}
+
+.slidev-layout pre.shiki span {
   background: transparent !important;
   font-family: 'JetBrains Mono', monospace !important;
 }
 
-/* Re-introduce minimal hierarchy via weight & italics on common Shiki classes */
-.slidev-layout .shiki .keyword,
-.slidev-layout .shiki span[style*="color:#0000FF"],
-.slidev-layout .shiki span[style*="color:#A626A4"],
-.slidev-layout .shiki span[style*="color:#E45649"] {
+.slidev-layout .shiki .line {
+  min-height: 1.36em;
+}
+
+.slidev-layout .shiki span[style*="color:#AB5959"],
+.slidev-layout .shiki span[style*="color:#B07D48"],
+.slidev-layout .shiki span[style*="color:#59873A"],
+.slidev-layout .shiki span[style*="color:#2E8087"],
+.slidev-layout .shiki span[style*="color:#4D9375"],
+.slidev-layout .shiki span[style*="color:#5E6687"],
+.slidev-layout .shiki span[style*="color:#A65E2B"] {
   font-weight: 700 !important;
 }
 
 .slidev-layout .shiki .comment,
-.slidev-layout .shiki span[style*="color:#A0A1A7"],
-.slidev-layout .shiki span[style*="color:#7E848F"] {
-  color: var(--mm-muted-fg) !important;
+.slidev-layout .shiki span[style*="color:#758575"],
+.slidev-layout .shiki span[style*="color:#A0ADA0"] {
   font-style: italic !important;
 }
 
 .slidev-layout .shiki .string,
-.slidev-layout .shiki span[style*="color:#50A14F"] {
+.slidev-layout .shiki span[style*="color:#B56959"],
+.slidev-layout .shiki span[style*="color:#2F855A"] {
   font-style: italic !important;
 }
 

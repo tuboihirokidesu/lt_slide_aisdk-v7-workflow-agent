@@ -19,8 +19,8 @@ mermaid:
 highlighter: shiki
 shiki:
   themes:
-    light: 'min-light'
-    dark: 'min-light'
+    light: 'vitesse-light'
+    dark: 'vitesse-light'
 layout: cover
 ---
 
@@ -289,8 +289,8 @@ export async function chat(messages) {
 // ↑ 承認待ちは workflow.suspend → resume、各 step が独立に retry 可能
 ```
 
-<div class="mt-3 text-sm opacity-80">
-  <code v-pre>'use workflow'</code> で実行境界、<code v-pre>'use step'</code> でツール実行を永続 step 化し、WorkflowAgent では <code v-pre>tool({ needsApproval })</code> で承認待ちを跨ぐ
+<div class="mt-1 text-[10px] opacity-75">
+  境界: <code v-pre>'use workflow'</code> は実行単位、<code v-pre>'use step'</code> は永続 step、<code v-pre>needsApproval</code> は承認待ちを跨ぐ
 </div>
 
 ---
@@ -759,7 +759,9 @@ await generateText({
 
 <v-click>
 
-WorkflowAgent でも対応済み。ただし workflow 境界を跨ぐため、`runtimeContext` / `toolsContext` は **serializable な値**に寄せる
+<div class="-mt-2 text-[10px] opacity-85">
+WorkflowAgent でも対応済み。workflow 境界を跨ぐので context は <strong>serializable な値</strong> に寄せる
+</div>
 
 </v-click>
 
@@ -791,10 +793,8 @@ await streamText({
 })
 ```
 
-承認ポリシーを **リクエスト単位** で変えられる。同じツールでも開発環境では自動承認、本番では人間承認、といった切り替えが容易
-
-<div class="mt-3 text-sm opacity-80">
-  例外: <code v-pre>WorkflowAgent</code> は suspend/resume と結合するため、最新 docs でも <code v-pre>tool({ needsApproval })</code> を使う
+<div class="mt-3 text-sm opacity-85">
+  承認ポリシーを <strong>リクエスト単位</strong> で差し替えられる。例外として <code v-pre>WorkflowAgent</code> は suspend/resume と結合するため、最新 docs でも <code v-pre>needsApproval</code> を使う
 </div>
 
 ---
@@ -1209,23 +1209,21 @@ layout: default
 
 # 移行後コード骨子
 
-```ts {all|2|5-6|8-15|17-20|22}
-// frontend/workflow/agent-chat.ts
+```ts {all|1|4-5|7-14|16-19|21}
 'use workflow'
-import { WorkflowAgent } from '@ai-sdk/workflow'
 
 export async function agentChat(input: AgentChatInput) {
-  const ctx = await prepareContext(input)              // memory / MCP / skill / pin
+  const ctx = await prepareContext(input)
 
   const agent = new WorkflowAgent({
     id: `mhi-${input.agentType}`,
     model: createLanguageModel(input.model),
-    instructions: buildCachedSystemMessage(input.model, ctx.prompts),
+    instructions: ctx.system,
     stopWhen: isStepCount(input.maxSteps ?? 10),
-    tools: ctx.workflowTools,                         // destructive は needsApproval 付き
+    tools: ctx.workflowTools,
     runtimeContext: { requestId: input.requestId },
-    toolsContext: ctx.toolsContext,                   // serializable な値だけ
-    prepareStep: ({ messages }) => ({ messages: stripInvalidReasoningSignatures(messages) }),
+    toolsContext: ctx.toolsContext,
+    prepareStep: repairReasoning,
   })
 
   const result = await agent.stream({
@@ -1233,7 +1231,7 @@ export async function agentChat(input: AgentChatInput) {
     writable: getWritable<ModelCallStreamPart>(),
   })
 
-  await persistAssistant(result, ctx)                  // DDB + Memory + title
+  await persistAssistant(result, ctx)
   return { messages: result.messages }
 }
 ```
