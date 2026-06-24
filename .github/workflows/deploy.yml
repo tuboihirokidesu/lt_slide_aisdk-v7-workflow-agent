@@ -41,7 +41,7 @@ jobs:
         env:
           BASE_PATH: /${{ github.event.repository.name }}/
         run: |
-          pnpm run build --base "$BASE_PATH" --router-mode hash
+          pnpm run build --base "$BASE_PATH"
           node scripts/create-slide-redirects.mjs
 
       - name: Upload artifact
