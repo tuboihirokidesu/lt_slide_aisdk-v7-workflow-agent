@@ -1,0 +1,513 @@
+/* ===========================================================
+   Minimalist Monochrome — Design System for Slidev
+   Pure black & white. Editorial serif. Sharp corners. No accent colors.
+   =========================================================== */
+
+:root {
+  --mm-bg:           #FFFFFF;
+  --mm-fg:           #000000;
+  --mm-muted:        #F5F5F5;
+  --mm-muted-fg:     #525252;
+  --mm-border:       #000000;
+  --mm-border-light: #E5E5E5;
+
+  /* Override Slidev's theme tokens */
+  --slidev-theme-primary: #000000;
+  --slidev-theme-secondary: #525252;
+  --slidev-theme-accents-teal: #000000;
+  --slidev-theme-accents-yellow: #000000;
+}
+
+/* ---------- Global resets ---------- */
+
+html, body, #app {
+  background: var(--mm-bg) !important;
+  color: var(--mm-fg) !important;
+}
+
+.slidev-page,
+.slidev-layout {
+  background: var(--mm-bg);
+  color: var(--mm-fg);
+  font-family: 'Source Serif 4', 'Source Serif Pro', Georgia, serif;
+  font-feature-settings: 'kern', 'liga', 'calt';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Sharp corners — non-negotiable */
+*, *::before, *::after {
+  border-radius: 0 !important;
+}
+
+/* ---------- Typography ---------- */
+
+.slidev-layout h1,
+.slidev-layout h2,
+.slidev-layout h3,
+.slidev-layout h4,
+.slidev-layout h5,
+.slidev-layout h6 {
+  font-family: 'Playfair Display', Georgia, serif !important;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.025em;
+  color: var(--mm-fg);
+}
+
+.slidev-layout h1 {
+  font-size: 2.75rem;
+  letter-spacing: -0.04em;
+  margin-bottom: 0.85rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 3px solid var(--mm-fg);
+}
+
+.slidev-layout h2 {
+  font-size: 2rem;
+}
+
+.slidev-layout h3 {
+  font-size: 1.35rem;
+  margin-top: 0.85rem;
+}
+
+.slidev-layout p,
+.slidev-layout li {
+  font-family: 'Source Serif 4', Georgia, serif;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  margin: 0.25rem 0;
+}
+
+/* ---------- Cover layout ---------- */
+
+.slidev-layout.cover {
+  padding: 4rem 6rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  background: var(--mm-bg) !important;
+}
+
+.slidev-layout.cover h1 {
+  font-size: 9rem;
+  font-style: italic;
+  letter-spacing: -0.06em;
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+.slidev-layout.cover p {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+}
+
+/* ---------- Section dividers — INVERTED ---------- */
+
+.slidev-layout.section {
+  background: var(--mm-fg) !important;
+  color: var(--mm-bg) !important;
+  padding: 4rem 6rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.slidev-layout.section h1 {
+  font-size: 7rem;
+  font-style: italic;
+  letter-spacing: -0.05em;
+  color: var(--mm-bg) !important;
+  border-bottom: 4px solid var(--mm-bg);
+  padding-bottom: 1rem;
+}
+
+.slidev-layout.section h2,
+.slidev-layout.section p {
+  color: var(--mm-bg) !important;
+}
+
+/* ---------- Center layout ---------- */
+
+.slidev-layout.center {
+  background: var(--mm-bg) !important;
+  text-align: center;
+  padding: 4rem 6rem;
+}
+
+.slidev-layout.center h1 {
+  font-size: 6rem;
+  font-style: italic;
+  border-bottom: none;
+  text-align: center;
+}
+
+/* ---------- End layout — INVERTED ---------- */
+
+.slidev-layout.end {
+  background: var(--mm-fg) !important;
+  color: var(--mm-bg) !important;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.slidev-layout.end h1 {
+  font-size: 9rem;
+  font-style: italic;
+  color: var(--mm-bg) !important;
+  border: none;
+}
+
+/* ---------- Tables ---------- */
+
+.slidev-layout table {
+  border-collapse: collapse;
+  border: 2px solid var(--mm-fg);
+  width: 100%;
+  margin: 1rem 0;
+}
+
+.slidev-layout table th {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-weight: 600;
+  background: var(--mm-fg);
+  color: var(--mm-bg);
+  border: 1px solid var(--mm-fg);
+  padding: 0.4rem 0.6rem;
+  text-align: left;
+}
+
+.slidev-layout table td {
+  border: 1px solid var(--mm-fg);
+  padding: 0.35rem 0.6rem;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  vertical-align: top;
+}
+
+.slidev-layout table tr:nth-child(even) td {
+  background: var(--mm-muted);
+}
+
+/* ---------- Code blocks (Shiki) — monochrome override ---------- */
+
+.slidev-layout pre,
+.slidev-layout pre.shiki,
+.slidev-layout .slidev-code,
+.slidev-layout div[class*="language-"] {
+  background: var(--mm-bg) !important;
+  border: 1px solid var(--mm-fg) !important;
+  font-family: 'JetBrains Mono', monospace !important;
+  font-size: 11px !important;
+  line-height: 1.3 !important;
+  padding: 8px 12px !important;
+  margin: 0.3rem 0 !important;
+}
+
+.slidev-layout pre.shiki code,
+.slidev-layout .shiki span {
+  color: var(--mm-fg) !important;
+  background: transparent !important;
+  font-family: 'JetBrains Mono', monospace !important;
+}
+
+/* Re-introduce minimal hierarchy via weight & italics on common Shiki classes */
+.slidev-layout .shiki .keyword,
+.slidev-layout .shiki span[style*="color:#0000FF"],
+.slidev-layout .shiki span[style*="color:#A626A4"],
+.slidev-layout .shiki span[style*="color:#E45649"] {
+  font-weight: 700 !important;
+}
+
+.slidev-layout .shiki .comment,
+.slidev-layout .shiki span[style*="color:#A0A1A7"],
+.slidev-layout .shiki span[style*="color:#7E848F"] {
+  color: var(--mm-muted-fg) !important;
+  font-style: italic !important;
+}
+
+.slidev-layout .shiki .string,
+.slidev-layout .shiki span[style*="color:#50A14F"] {
+  font-style: italic !important;
+}
+
+/* Highlighted code lines */
+.slidev-layout .shiki .line.highlighted {
+  background: var(--mm-muted) !important;
+  border-left: 4px solid var(--mm-fg) !important;
+  padding-left: 0.5rem !important;
+  margin-left: -0.5rem !important;
+  display: inline-block !important;
+  width: calc(100% + 0.5rem) !important;
+}
+
+/* Inline code */
+.slidev-layout :not(pre) > code {
+  font-family: 'JetBrains Mono', monospace !important;
+  background: var(--mm-muted) !important;
+  border: 1px solid var(--mm-border-light) !important;
+  padding: 0.05em 0.35em !important;
+  font-size: 0.9em !important;
+}
+
+/* ---------- Horizontal rule ---------- */
+
+.slidev-layout hr {
+  border: 0;
+  height: 4px;
+  background: var(--mm-fg);
+  margin: 1.5rem 0;
+}
+
+/* ---------- Blockquote — editorial pull-quote ---------- */
+
+.slidev-layout blockquote {
+  border-left: 4px solid var(--mm-fg);
+  padding: 0.5rem 0 0.5rem 1.5rem;
+  font-family: 'Playfair Display', Georgia, serif !important;
+  font-style: italic;
+  font-size: 1.5rem;
+  line-height: 1.4;
+  color: var(--mm-fg);
+  margin: 1.5rem 0;
+}
+
+.slidev-layout blockquote p {
+  font-family: 'Playfair Display', Georgia, serif !important;
+  font-style: italic;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+/* ---------- Links ---------- */
+
+.slidev-layout a {
+  color: var(--mm-fg) !important;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+  transition: text-decoration-thickness 100ms;
+}
+
+.slidev-layout a:hover {
+  text-decoration-thickness: 3px;
+}
+
+/* ---------- Lists ---------- */
+
+.slidev-layout ul,
+.slidev-layout ol {
+  padding-left: 1.2rem;
+  margin: 0.4rem 0;
+}
+
+.slidev-layout ul > li {
+  list-style: none;
+  position: relative;
+  padding-left: 1.2rem;
+  margin: 0.2rem 0;
+}
+
+.slidev-layout ul > li::before {
+  content: '—';
+  position: absolute;
+  left: 0;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--mm-fg);
+}
+
+/* ---------- TOC ---------- */
+
+.slidev-toc-item {
+  font-family: 'Playfair Display', Georgia, serif !important;
+  font-size: 1.5rem !important;
+  padding: 0.4rem 0 !important;
+  border-bottom: 1px solid var(--mm-border-light);
+}
+
+.slidev-toc-item-level-1 {
+  font-style: italic;
+}
+
+/* ---------- Mermaid — full monochrome ----------
+   Mermaid embeds its own <style id="mermaid-..."> with ID selectors
+   inside the SVG. We use `div.mermaid svg [class]` with !important
+   to win specificity in the cascade.
+   ---------------------------------------------- */
+
+div.mermaid {
+  background: var(--mm-bg) !important;
+  filter: grayscale(100%) contrast(1000%) !important;
+}
+
+div.mermaid svg {
+  background: var(--mm-bg) !important;
+}
+
+/* Use attribute-style selector to outweigh mermaid's #id .class rules */
+div.mermaid svg [class*="actor"]:not(text):not([class*="line"]),
+div.mermaid svg [class*="node"] rect,
+div.mermaid svg [class*="node"] polygon,
+div.mermaid svg [class*="node"] circle,
+div.mermaid svg [class*="node"] ellipse,
+div.mermaid svg [class*="node"] path,
+div.mermaid svg .cluster rect {
+  fill: var(--mm-bg) !important;
+  stroke: var(--mm-fg) !important;
+  stroke-width: 2px !important;
+}
+
+div.mermaid svg text,
+div.mermaid svg .nodeLabel,
+div.mermaid svg .edgeLabel,
+div.mermaid svg .messageText,
+div.mermaid svg .loopText tspan,
+div.mermaid svg [class*="text"] {
+  fill: var(--mm-fg) !important;
+  color: var(--mm-fg) !important;
+  font-family: 'JetBrains Mono', monospace !important;
+}
+
+div.mermaid svg path[class*="edge"],
+div.mermaid svg path[class*="flowchart-link"],
+div.mermaid svg [class*="actor-line"],
+div.mermaid svg line[class*="messageLine"] {
+  stroke: var(--mm-fg) !important;
+  fill: none !important;
+  stroke-width: 1.5px !important;
+}
+
+div.mermaid svg [class*="arrowhead"] path,
+div.mermaid svg marker path,
+div.mermaid svg defs marker path {
+  fill: var(--mm-fg) !important;
+  stroke: var(--mm-fg) !important;
+}
+
+div.mermaid svg .edgeLabel rect,
+div.mermaid svg .edgeLabel foreignObject {
+  background: var(--mm-bg) !important;
+  fill: var(--mm-bg) !important;
+}
+
+div.mermaid svg .note,
+div.mermaid svg rect.note {
+  fill: var(--mm-muted) !important;
+  stroke: var(--mm-fg) !important;
+}
+
+/* Loop boxes in sequence diagrams */
+div.mermaid svg .loopLine,
+div.mermaid svg path.loopLine {
+  stroke: var(--mm-fg) !important;
+  stroke-dasharray: 3, 3 !important;
+}
+
+div.mermaid svg .labelBox {
+  fill: var(--mm-bg) !important;
+  stroke: var(--mm-fg) !important;
+}
+
+/* Activation boxes */
+div.mermaid svg rect.activation0,
+div.mermaid svg rect.activation1,
+div.mermaid svg rect.activation2 {
+  fill: var(--mm-muted) !important;
+  stroke: var(--mm-fg) !important;
+}
+
+/* ---------- Texture overlay — subtle noise / hairline lines ---------- */
+
+.slidev-layout::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 1px,
+    #000 1px,
+    #000 2px
+  );
+  background-size: 100% 4px;
+  opacity: 0.012;
+  z-index: 0;
+}
+
+.slidev-layout > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Section overlay — vertical white lines */
+.slidev-layout.section::before {
+  background-image: repeating-linear-gradient(
+    90deg,
+    transparent,
+    transparent 1px,
+    #FFFFFF 1px,
+    #FFFFFF 2px
+  );
+  background-size: 4px 100%;
+  opacity: 0.04;
+}
+
+.slidev-layout.end::before {
+  background-image: radial-gradient(
+    circle at top center,
+    #ffffff,
+    transparent 70%
+  );
+  opacity: 0.06;
+}
+
+/* ---------- Editorial helpers (used in slides via class="...") ---------- */
+
+.mm-eyebrow {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--mm-muted-fg);
+}
+
+.mm-rule-thin   { border-top: 1px solid var(--mm-fg); }
+.mm-rule-medium { border-top: 2px solid var(--mm-fg); }
+.mm-rule-thick  { border-top: 4px solid var(--mm-fg); }
+.mm-rule-ultra  { border-top: 8px solid var(--mm-fg); }
+
+.mm-meta {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.875rem;
+  letter-spacing: 0.05em;
+  color: var(--mm-muted-fg);
+}
+
+.mm-italic {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-style: italic;
+}
+
+.mm-display {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 0.95;
+}
+
+.mm-folio {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}

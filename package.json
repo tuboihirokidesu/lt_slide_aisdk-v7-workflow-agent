@@ -1,0 +1,19 @@
+{
+  "name": "lt-slide-aisdk-v7-workflow-agent",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "slidev --open",
+    "build": "slidev build",
+    "export": "slidev export"
+  },
+  "dependencies": {
+    "@slidev/cli": "latest",
+    "@slidev/theme-default": "^0.25.0",
+    "@slidev/theme-seriph": "latest",
+    "vue": "latest"
+  },
+  "devDependencies": {
+    "playwright-chromium": "latest"
+  }
+}
