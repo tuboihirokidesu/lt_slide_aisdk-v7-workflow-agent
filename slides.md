@@ -693,33 +693,33 @@ layout: default
 
 # Subagents — 公式パターン化
 
-親エージェントが **ツール経由で子エージェントを呼ぶ** パターンを公式ドキュメント化
+親エージェントが **tool の `execute` から子Agentを呼ぶ** パターンを公式ドキュメント化
+
+<div class="text-xs opacity-80 mt-1">
+Docs: <a href="https://ai-sdk.dev/v7/docs/agents/subagents">ai-sdk.dev/v7/docs/agents/subagents</a>
+</div>
 
 <v-clicks>
 
-- 子は **独立した context window** を持つ → 大量トークンを消費しても親は汚れない
-- `toModelOutput` で **親が見る要約だけを返せる**
-- 並列リサーチ（複数子を同時 spawn）が自然に書ける
-- Tool 権限を **能力ごとに分離** できる
+- 子は **独立した context window** を持つ → 探索ログを親に抱えさせない
+- `toModelOutput` で **親が見る要約だけを返せる**（総tokenは減らず、親contextを守る）
+- 並列リサーチ / Tool 権限分離を自然に書ける
 
 </v-clicks>
 
 <v-click>
 
-```ts {all|6-11|13-14}
+```ts {all|4-7|9}
 const research = tool({
-  description: 'Research a topic deeply',
   inputSchema: z.object({ topic: z.string() }),
-  execute: async ({ topic }) => {
-    const subagent = new ToolLoopAgent({
-      model: 'anthropic/claude-sonnet-4-6',
-      tools: { searchWeb, readUrl, fetchPdf },
-      instructions: `Research the topic: ${topic}`,
-    })
-    const r = await subagent.generate({ prompt: topic })
+  execute: async ({ topic }, { abortSignal }) => {
+    const r = await new ToolLoopAgent({
+      model,
+      tools: { searchWeb, readUrl },
+    }).generate({ prompt: topic, abortSignal })
     return r.text
   },
-  toModelOutput: ({ output }) => output.slice(0, 1000),  // 要約だけ親に返す
+  toModelOutput: ({ output }) => output.slice(0, 1000),
 })
 ```
 
@@ -729,40 +729,55 @@ const research = tool({
 layout: default
 ---
 
-# 型付き Context: runtimeContext / toolsContext
+# 型付き Context: 何が嬉しい？
 
-旧 `experimental_context` が **2 つに分割**
+ツールが必要なサーバー側の値を **schema として宣言** できる
 
-| API | スコープ | 用途 |
-|---|---|---|
-| `runtimeContext` | エージェント全体で共有 | requestId、ユーザー情報など |
-| `toolsContext` | **ツールごとにスコープ** | API キーなどツール固有のシークレット |
+<div class="grid grid-cols-2 gap-5 mt-4">
 
-<v-click>
+<div>
+<div class="mm-folio mb-2">Before · 旧実装</div>
 
-`tool({ contextSchema })` で **Zod スキーマで型を宣言** → execute の `context` に型推論
-
-```ts {all|3-5|6-8|13-15}
+```ts
+const apiKey = process.env.WEATHER_API_KEY!
 const weather = tool({
   inputSchema: z.object({ location: z.string() }),
-  contextSchema: z.object({ apiKey: z.string() }),
-  execute: async ({ location }, { context: { apiKey } }) =>
+  execute: async ({ location }) =>
     getWeather(location, apiKey),
-})
-
-await generateText({
-  model, tools: { weather },
-  runtimeContext: { requestId: 'req-123' },
-  toolsContext: { weather: { apiKey: process.env.WEATHER_API_KEY! } },
 })
 ```
 
-</v-click>
+- 外側の値に暗黙依存
+- tool単体で必要な値が読めない
+- テストや差し替えで壊れやすい
+</div>
+
+<div>
+<div class="mm-folio mb-2">After · AI SDK 7</div>
+
+```ts
+const weather = tool({
+  inputSchema: z.object({ location: z.string() }),
+  contextSchema: z.object({ apiKey: z.string() }),
+  execute: async ({ location }, { context }) =>
+    getWeather(location, context.apiKey),
+})
+
+await agent.generate({
+  prompt,
+  toolsContext: {
+    weather: { apiKey: process.env.WEATHER_API_KEY! },
+  },
+})
+```
+</div>
+
+</div>
 
 <v-click>
 
-<div class="-mt-2 text-[10px] opacity-85">
-WorkflowAgent でも対応済み。workflow 境界を跨ぐので context は <strong>serializable な値</strong> に寄せる
+<div class="mt-3 text-sm opacity-90">
+嬉しさ: `execute` の `context` に型推論が効く。ツールごとに必要な権限・API key を分離でき、WorkflowAgent では <strong>serializable な値</strong> として step 境界を越えやすい。
 </div>
 
 </v-click>
@@ -832,34 +847,23 @@ await supportAgent.generate({
 layout: default
 ---
 
-# Memory — 3 つのアプローチを公式提供
+# Memory — 3 つの使い分け
 
-| アプローチ | 労力 | 柔軟性 | プロバイダロックイン |
-|---|---|---|---|
-| **Provider-defined tools** | 低 | 中 | あり |
-| **Memory providers** | 低 | 低 | プロバイダ依存 |
-| **Custom tool** | 高 | 高 | なし |
+<div class="text-xs opacity-80 -mt-2 mb-4">
+Docs: <a href="https://ai-sdk.dev/v7/docs/agents/memory">ai-sdk.dev/v7/docs/agents/memory</a>
+</div>
 
-<v-click>
+| アプローチ | 何を任せる？ | 選ぶとき |
+|---|---|---|
+| **Provider-defined tools**<br/>例: Anthropic Memory Tool | モデルに memory 操作の判断を任せる。自分は保存先を実装 | Claude 前提で、最小実装にしたい |
+| **Memory providers**<br/>例: Letta / Mem0 | 外部 provider に抽出・検索・注入を任せる | 既製の長期記憶基盤や管理画面を使いたい |
+| **Custom tool** | schema、検索、保存、権限、監査を自前で持つ | DB/RAG/権限制御を完全に握りたい |
 
-例: Anthropic Memory Tool
-
-```ts {all|1-7|9-12}
-const memory = anthropic.tools.memory_20250818({
-  execute: async action => {
-    // action.command: view | create | str_replace | insert | delete | rename
-    // action.path: /memories 配下のパス
-    return result // ストレージバックエンドを実装、文字列で返す
-  },
-})
-
-const agent = new ToolLoopAgent({
-  model: 'anthropic/claude-haiku-4.5',
-  tools: { memory },
-})
-```
-
-</v-click>
+<div class="mt-4 border-2 border-black p-4 text-sm leading-snug">
+<strong>Anthropic Memory Tool の嬉しさ:</strong>
+Claude が知っている `/memories` IF（`view/create/replace` 等）を使える。
+独自 memory tool の schema 設計をかなり省ける一方、Claude 専用の provider lock-in は受け入れる。
+</div>
 
 ---
 layout: default
