@@ -78,8 +78,8 @@ layout: default
 
 <div class="border-t-2 border-black pt-3">
   <div class="mm-folio mb-1">02 · Chapter</div>
-  <div class="mm-italic text-xl">Usage</div>
-  <div class="text-sm opacity-70">WorkflowAgent の使い方</div>
+  <div class="mm-italic text-xl">WorkflowAgent</div>
+  <div class="text-sm opacity-70">基本実装と接続方法</div>
 </div>
 
 <div class="border-t-2 border-black pt-3">
@@ -241,7 +241,7 @@ layout: default
 </ul>
 </div>
 
-<div class="border-2 border-black p-5" style="background:#000;color:#fff">
+<div class="mm-invert-panel border-2 border-black p-5">
 <div class="mm-folio mb-1 opacity-80">B · WorkflowAgent</div>
 <div class="mm-italic text-2xl mb-3">理想編</div>
 <ul class="text-sm leading-snug">
@@ -339,13 +339,15 @@ layout: section
 
 <div class="mm-folio opacity-70 mb-4">Chapter</div>
 
-# 02 — Usage
+# 02 — WorkflowAgent の基本実装
+
+Agent 本体、API ルート、再接続 Transport の3点だけ見る
 
 ---
 layout: default
 ---
 
-# ワークフロー関数側
+# WorkflowAgent は workflow 関数の中で動かす
 
 ```ts {all|1-4|6-8|10-17|19-22|all}
 async function bookFlightStep(input) {
@@ -378,7 +380,7 @@ export async function chat(messages: UIMessage[]) {
 layout: default
 ---
 
-# API ルート側
+# API ルートは Workflow を起動するだけ
 
 ```ts {all|1-3|7|9|11-13|all}
 import { createModelCallToUIChunkTransform } from '@ai-sdk/workflow'

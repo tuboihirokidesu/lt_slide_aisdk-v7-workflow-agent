@@ -135,6 +135,17 @@ html, body, #app {
   color: var(--mm-bg) !important;
 }
 
+.slidev-layout.section h1 + p {
+  opacity: 0.9 !important;
+}
+
+.slidev-layout.section :not(pre) > code,
+.slidev-layout.end :not(pre) > code {
+  background: rgba(255, 255, 255, 0.16) !important;
+  border-color: rgba(255, 255, 255, 0.45) !important;
+  color: var(--mm-bg) !important;
+}
+
 /* ---------- Center layout ---------- */
 
 .slidev-layout.center {
@@ -513,6 +524,25 @@ div.mermaid svg rect.activation2 {
 .mm-italic {
   font-family: 'Playfair Display', Georgia, serif;
   font-style: italic;
+}
+
+.slidev-layout .mm-invert-panel {
+  background: var(--mm-fg) !important;
+  color: var(--mm-bg) !important;
+}
+
+.slidev-layout .mm-invert-panel :is(div, p, ul, ol, li, strong, em, span) {
+  color: var(--mm-bg) !important;
+}
+
+.slidev-layout .mm-invert-panel .mm-folio {
+  opacity: 0.96 !important;
+}
+
+.slidev-layout .mm-invert-panel :not(pre) > code {
+  background: rgba(255, 255, 255, 0.16) !important;
+  border-color: rgba(255, 255, 255, 0.45) !important;
+  color: var(--mm-bg) !important;
 }
 
 .mm-display {
