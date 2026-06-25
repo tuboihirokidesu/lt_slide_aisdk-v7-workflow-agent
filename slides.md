@@ -299,17 +299,23 @@ layout: default
 
 # WorkflowAgent の位置づけ
 
-`@ai-sdk/workflow` パッケージで提供される **durable 版エージェント**
+<div class="mm-slide-lead">
+<code v-pre>@ai-sdk/workflow</code> パッケージで提供される <strong>durable</strong> 版エージェント
+</div>
 
 | 観点 | ToolLoopAgent (`ai`) | WorkflowAgent (`@ai-sdk/workflow`) |
 |---|---|---|
-| ランタイム | インメモリ | Workflow runtime（Vercel World など） |
+| ランタイム | インメモリ | Workflow runtime（World が queue / 永続化を担当） |
 | 耐障害性 | プロセス落ちで全消失 | **再起動を跨いで生存** |
 | ツール再試行 | 手動 | **ステップ単位で自動** |
 | Human-in-the-loop | あり | あり + **サスペンド越えで生存** |
 | `generate()` | あり | **未実装**（`throw new Error`） |
 | `stream()` | あり | プライマリ API |
 | 出力 | streamText の戻り値 | `writable` パラメタに `ModelCallStreamPart` |
+
+<div class="mt-2 text-[10px] opacity-80">
+World = Workflow DevKit の実行バックエンド。Local World は開発用、Vercel World は Vercel 上の managed backend。
+</div>
 
 <!--
 "durable" を翻訳すれば「永続的・耐久性のある」。
@@ -449,6 +455,7 @@ export default function Chat() {
   const transport = useMemo(
     () => new WorkflowChatTransport({
       api: '/api/chat',
+      maxConsecutiveErrors: 5,
       initialStartIndex: -50,
     }),
     [],
@@ -460,7 +467,7 @@ export default function Chat() {
 }
 ```
 
-ネットワーク切断・サーバー側タイムアウトに耐性。POST は `x-workflow-run-id` を返し、`GET /api/chat/{runId}/stream` で同じ run の readable を再取得する
+公式ガイド例では `useMemo` あり。必須 API ではなく、transport identity を安定させるため。POST は `x-workflow-run-id` を返し、`GET /api/chat/{runId}/stream` で同じ run の readable を再取得する
 
 <!--
 通常の useChat の transport を WorkflowChatTransport に差し替えた上で、サーバー側に reconnect endpoint を生やす。
