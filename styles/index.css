@@ -552,6 +552,10 @@ div.mermaid svg rect.activation2 {
   color: var(--mm-bg) !important;
 }
 
+.slidev-layout .mm-invert-panel ul > li::before {
+  color: var(--mm-bg) !important;
+}
+
 .slidev-layout .mm-slide-lead {
   color: var(--mm-soft-fg);
   font-family: 'Source Serif 4', Georgia, serif;

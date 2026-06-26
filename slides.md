@@ -500,6 +500,30 @@ WorkflowAgent は「Run agents」の中核。beta 時代の細かい差分より
 </v-click>
 
 ---
+layout: default
+---
+
+# MCP Apps: 2つの sandbox
+
+<div class="mm-slide-lead">
+MCP Apps は tool result に紐づく <code>ui://</code> HTML resource を、<code>experimental_MCPAppRenderer</code> が sandboxed iframe に描画する仕組み
+</div>
+
+| レイヤー | 何を隔離するか | AI SDK 7 での見方 |
+|---|---|---|
+| **MCP Apps / iframe** | `ui://` HTML resource を browser の sandboxed iframe に閉じ込める | `modelVisible` tools だけを LLM に渡し、`appVisible` tools は UI 側に残す |
+| **Host API** | iframe からの要求を server 側で検査する | `readMCPAppResource` で HTML / CSP / permissions を読み、`callTool` は allowlist / auth / approval を通す |
+| **Vercel Sandbox** | Firecracker microVM で未信頼コードを実行する | MCP Apps の表示 sandbox ではない。Code Mode 風の `execute(code)` や preview server の実行基盤にできる |
+
+<div class="mt-4 border-t-2 border-black pt-3 text-base">
+つまり: <strong>モデルに見せる能力</strong> と <strong>ユーザーが操作する UI</strong> と <strong>未信頼コード実行</strong> を別々に設計できる。
+</div>
+
+<div class="mt-2 text-sm opacity-70">
+Docs: <a href="https://vercel.com/kb/guide/ai-sdk-mcp-apps">AI SDK MCP Apps guide</a> / <a href="https://vercel.com/docs/sandbox">Vercel Sandbox</a> / <a href="https://blog.cloudflare.com/ja-jp/code-mode-mcp/">Cloudflare Code Mode</a>
+</div>
+
+---
 layout: section
 ---
 
