@@ -3,7 +3,7 @@ theme: default
 title: AI SDK v7 — WorkflowAgent を中心に
 info: |
   ## Vercel AI SDK v7
-  WorkflowAgent を軸に v7 の新機能・破壊的変更・設計思想・現状のギャップを一次情報からまとめた LT
+  WorkflowAgent を軸に AI SDK 7 stable の新機能・破壊的変更・設計思想・残課題を一次情報からまとめた LT
 transition: none
 mdc: true
 fonts:
@@ -27,7 +27,7 @@ layout: cover
 <div class="flex flex-col h-full justify-between">
 
 <div>
-  <div class="mm-folio">Vercel · AI SDK · v7.0.0-beta.185</div>
+  <div class="mm-folio">Vercel · AI SDK 7 stable · 2026-06-25</div>
   <div class="mm-rule-thin mt-2"></div>
 </div>
 
@@ -50,8 +50,8 @@ layout: cover
 </div>
 
 <!--
-v7 は執筆時点で ai@7.0.0-beta.185、@ai-sdk/workflow@1.0.0-beta.105。
-beta 段階だが、設計思想とロードマップは見えてきた。
+AI SDK 7 は 2026-06-25 に stable release。
+2026-06-26 確認時点で npm latest は ai@7.0.2、@ai-sdk/workflow@1.0.2。
 -->
 
 ---
@@ -157,7 +157,7 @@ layout: default
 <v-click>
 
 「**新機能がない**」のではなく、Vercel が **Changesets で日次レベルにリリース**しているだけ
-（執筆時点で `ai@7.0.0-beta.185`、`@ai-sdk/workflow@1.0.0-beta.105`）
+（2026-06-26 確認時点で `ai@7.0.2`、`@ai-sdk/workflow@1.0.2`）
 
 </v-click>
 
@@ -478,26 +478,24 @@ export default function Chat() {
 layout: default
 ---
 
-# 最近の CHANGELOG ハイライト
+# AI SDK 7 stable release highlights
 
-`@ai-sdk/workflow` の進化を見るとロードマップが見える
+2026-06-25 の公式 blog で **AI SDK 7 stable** として発表
 
 <v-clicks>
 
-- **beta.18** — `maxSteps` 削除 → `stopWhen` + `isStepCount()` に統一
-- **canary.41 系** — `runtimeContext` / `toolsContext` を WorkflowAgent に追加
-- **canary.85 系** — WorkflowAgent でも `tool.toModelOutput` を尊重
-- **canary.87 / beta.100** — approval replay を再検証し、provider-executed tool approval の resume を修正
-- **beta.101** — system message を `prompt` / `messages` 内でデフォルト拒否
-- **beta.104** — `experimental_sandbox` を WorkflowAgent に追加
-- **beta.105** — 最新（2026-06-24 時点）
+- **Develop** — `reasoning`、typed tool / runtime context、provider file / skill uploads、MCP Apps、TUI
+- **Run** — tool approvals、`WorkflowAgent`、timeouts、sandbox support
+- **Integrate** — Codex / Claude Code / Deep Agents / OpenCode / Pi など任意の agent harness
+- **Observe** — telemetry、Node.js tracing channel、lifecycle events、performance statistics
+- **Beyond text** — provider-agnostic realtime voice、experimental video generation
 
 </v-clicks>
 
 <v-click>
 
-ToolLoopAgent と API 表面を **揃えつつ、durable 特有の制約を明示する方向**  
-（`prompt` / `id` / context / sandbox / approval validation など）
+WorkflowAgent は「Run agents」の中核。beta 時代の細かい差分より、  
+**production agent stack の一部として stable 化した**ことが今回の大きな変化
 
 </v-click>
 
@@ -978,7 +976,7 @@ layout: default
 | 主張 | 実態 |
 |---|---|
 | WorkflowAgent に **Subagent 第一級 API** が入った | ❌ CHANGELOG / docs / ソースで**裏付けなし**。専用 API は存在しない |
-| **`toolsContext` のサポート**が WorkflowAgent に入っている | ✅ beta.105 時点で対応済み。ただし workflow 境界を跨ぐため **serializable 前提** |
+| **`toolsContext` のサポート**が WorkflowAgent に入っている | ✅ v7 stable docs で対応済み。ただし workflow 境界を跨ぐため **serializable 前提** |
 | **`generate()` が無いのは本物のギャップ** | ✅ ソースで `throw new Error('Not implemented')` を確認 |
 | **Vercel Workflow への完全ロックイン** | △ 当初そう書いたが、実は **Workflow SDK の "Worlds" 抽象化** で AWS / DigitalOcean / Docker / 自前ホストも可能。AI SDK の docs が Vercel World 前提なだけ |
 
@@ -1000,20 +998,20 @@ layout: default
 | Subagent との統合がまだ無い | ★★★ | マルチエージェントを durable にするのが面倒 |
 | context は serializable 前提 | ★★★ | DB client / SDK client など live object は step 内で再生成が必要 |
 | WorkflowAgent だけ承認 API が `needsApproval` | ★★ | 他 API の `toolApproval` と覚え分けが必要 |
-| 状態の可視化・デバッグ | ★★ | Vercel ダッシュボード前提、外部 APM 連携は弱め |
+| workflow run と外部 APM の紐付け | ★★ | AI SDK 側 telemetry は強化。Workflow の runId / step / tool trace の設計は別途必要 |
 
 ---
 layout: default
 ---
 
-# 1.0 GA に向けて欲しい改善
+# Stable 後に欲しい改善
 
 <v-clicks>
 
 1. **`generate()` の提供** — `stream()` をラップして最後の結果だけ返せば実装可能なはず
 2. **Subagents の第一級サポート** — `createSubagent()` のような API で「親 durable・子も durable」を自然に書きたい
 3. **AI SDK レベルでの "World" 公式サポート** — Workflow SDK 側に Worlds は既にあるので、AI SDK のドキュメントでも非 Vercel World の例を提示してほしい
-4. **Observability 強化** — OpenTelemetry を介して Datadog / New Relic / 自前 Grafana へ
+4. **WorkflowAgent の observability recipe** — `runId` / step / tool / model call を外部 APM と紐付ける定石
 5. **承認 UI のテンプレート** — `x-workflow-run-id` と reconnect endpoint まで含む標準パターン
 6. **非 serializable resource の定石** — context ではなく step 内再接続、という公式パターン
 
@@ -1289,7 +1287,7 @@ export async function POST(req: Request) {
 layout: default
 ---
 
-# 残課題（GA 後でも検証が要る点）
+# 残課題（stable 後でも検証が要る点）
 
 <v-clicks>
 
@@ -1341,7 +1339,7 @@ layout: default
 <div>
 <div class="mm-folio mb-1">04</div>
 <div class="mm-italic text-xl">v7 Catalog</div>
-<div class="text-sm">Subagents / 型付き context / 承認 API / callOptionsSchema / Memory</div>
+<div class="text-sm">reasoning / context / approvals / WorkflowAgent / Memory / MCP Apps / uploads / observability</div>
 </div>
 
 <div>
@@ -1377,6 +1375,7 @@ layout: default
 <div>
 <div class="mm-folio mb-1 text-[10px]">AI SDK</div>
 
+- [AI SDK 7 Blog](https://vercel.com/blog/ai-sdk-7)
 - [AI SDK Versioning Policy](https://ai-sdk.dev/v7/docs/migration-guides/versioning)
 - [WorkflowAgent ガイド](https://ai-sdk.dev/v7/docs/agents/workflow-agent)
 - [v7 Migration Guide](https://ai-sdk.dev/v7/docs/migration-guides/migration-guide-7-0)
