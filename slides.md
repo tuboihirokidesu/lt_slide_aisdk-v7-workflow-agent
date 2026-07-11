@@ -809,6 +809,87 @@ layout: default
 </v-click>
 
 ---
+layout: default
+---
+
+<div class="mm-folio mb-2">Recommendation · AI Workspace</div>
+
+# 全部は変えない。必要な Agent だけ durable にする
+
+<div class="mt-2 text-lg leading-snug">
+結論は <strong>WorkflowAgent の部分導入</strong>。全面置換ではない。
+</div>
+
+<div class="grid grid-cols-[1.35fr_0.9fr] gap-x-8 mt-5">
+
+<div>
+<div class="mm-folio mb-2">導入する順番</div>
+
+<div class="border-t-2 border-black py-3 grid grid-cols-[2.3rem_1fr] gap-x-3">
+<div class="mm-italic text-3xl">1</div>
+<div>
+<div class="text-base font-bold">RAG / Knowledge で障害テスト</div>
+<div class="text-sm">読み取り中心の Agent で、完了済み検索を再利用できるか検証</div>
+</div>
+</div>
+
+<div class="border-t border-black py-3 grid grid-cols-[2.3rem_1fr] gap-x-3">
+<div class="mm-italic text-3xl">2</div>
+<div>
+<div class="text-base font-bold">書き込み tool に冪等性を入れる</div>
+<div class="text-sm">WorkflowAgent でも外部 API の exactly-once は保証されない</div>
+</div>
+</div>
+
+<div class="border-y border-black py-3 grid grid-cols-[2.3rem_1fr] gap-x-3">
+<div class="mm-italic text-3xl">3</div>
+<div>
+<div class="text-base font-bold">Holiday / User Admin へ広げる</div>
+<div class="text-sm">長時間・複数 tool・承認ありほど durable 化の効果が大きい</div>
+</div>
+</div>
+</div>
+
+<div class="border-l-2 border-black pl-5">
+<div class="mm-folio mb-3">変えない範囲</div>
+<div class="mm-italic text-xl mb-1">短い Q&amp;A</div>
+<div class="text-sm mb-5">失敗時に最初からやり直せる処理は ToolLoopAgent のまま</div>
+
+<div class="mm-italic text-xl mb-1">General / MI Agent</div>
+<div class="text-sm">Claude Agent SDK + AgentCore の別基盤。置換ではなく再設計になる</div>
+</div>
+
+</div>
+
+<div class="mt-5 mm-invert-panel border-2 border-black px-5 py-3 text-sm leading-snug">
+<strong>最初の判断ゲート:</strong> Vercel World は現在 <code v-pre>iad1</code>。社内データの保存先要件を確認し、不可なら AWS 東京の Postgres / custom World を検討する。
+</div>
+
+<!--
+通常 Agent route は maxDuration=800s、agent.stream は totalMs=740s。
+timeout では onEnd がバイパスされ、部分応答は保存されないと実装コメントにも明記されている。
+この「1 request 内で loop 全体を完走させる」制約は WorkflowAgent と相性がよい改善対象。
+
+ただし dynamic MCP client、DB client、SDK client は workflow 境界を越えて保持できない。
+識別子・設定だけを serializable context として渡し、各 step 内で再接続する。
+
+書き込み tool は、外部 API 成功後・step 完了記録前に落ちると retry され得る。
+runId / stepId / toolCallId などから安定した idempotency key を作る。
+
+General / MI Agent は通常 route を通らず、ブラウザから AgentCore Runtime を直接 invoke する。
+HITL queue と reconnect の耐障害化は重要だが、WorkflowAgent 置換とは別トラックで扱う。
+
+検証では「検索完了直後に process kill → 検索を再実行せず次 step から再開」を合格条件にする。
+
+Sources:
+https://vercel.com/kb/guide/what-is-workflowagent
+https://workflow-sdk.dev/worlds/vercel
+https://workflow-sdk.dev/worlds/postgres
+https://github.com/mhigroup/A0005-AI-Workspace/blob/develop/frontend/app/api/chat/histories/%5BhistoryId%5D/agent/route.ts
+https://github.com/mhigroup/A0005-AI-Workspace/blob/develop/frontend/app/api/chat/histories/%5BhistoryId%5D/agent/agentRegistry.ts
+-->
+
+---
 layout: section
 ---
 
