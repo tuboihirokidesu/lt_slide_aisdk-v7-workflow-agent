@@ -946,6 +946,102 @@ const research = tool({
 layout: default
 ---
 
+<div class="mm-folio mb-2">Subagents · AI Workspace</div>
+
+# まずは「最初の質問」で Agent を自動選択する
+
+<div class="mt-2 text-lg leading-snug">
+既存 Agent を作り直さず、<strong>1 chat = 1 Agent</strong> のまま選択 UI を省略できる。
+</div>
+
+<div class="grid grid-cols-[1fr_auto_1fr_auto_1fr_auto_1fr] items-center gap-x-3 mt-7">
+
+<div class="border-t-2 border-black pt-3">
+<div class="mm-folio mb-1">Input</div>
+<div class="mm-italic text-xl">最初の質問</div>
+</div>
+
+<div class="mm-italic text-3xl">→</div>
+
+<div class="border-t-2 border-black pt-3">
+<div class="mm-folio mb-1">Guard</div>
+<div class="mm-italic text-xl">権限で候補を絞る</div>
+</div>
+
+<div class="mm-italic text-3xl">→</div>
+
+<div class="border-t-2 border-black pt-3">
+<div class="mm-folio mb-1">Route</div>
+<div class="mm-italic text-xl">LLM が agentId を選ぶ</div>
+</div>
+
+<div class="mm-italic text-3xl">→</div>
+
+<div class="border-t-2 border-black pt-3">
+<div class="mm-folio mb-1">Persist</div>
+<div class="mm-italic text-xl">selected_agent に保存</div>
+</div>
+
+</div>
+
+<div class="grid grid-cols-2 gap-x-10 mt-8 text-sm leading-snug">
+
+<div class="border-t border-black pt-3">
+<div class="mm-folio mb-2">今すぐ実現しやすい</div>
+<ul>
+<li>通常 Agent は共通 Route + Registry に集約済み</li>
+<li>DynamoDB に説明・enabled・必要権限がある</li>
+<li>選択後は既存の tool / HITL / UI をそのまま使う</li>
+</ul>
+</div>
+
+<div class="border-t border-black pt-3">
+<div class="mm-folio mb-2">本格 Subagent 化が必要</div>
+<ul>
+<li>同じ chat で質問ごとに Agent を切り替える</li>
+<li>複数 Agent を呼び、親 Agent が回答を統合する</li>
+<li>General / MI は直叩きなので別の transport 設計</li>
+</ul>
+</div>
+
+</div>
+
+<div class="mt-6 mm-invert-panel border-2 border-black px-5 py-3 text-sm leading-snug">
+<strong>推奨:</strong> まず初回ルーターを導入。複数 Agent 協調は、既存 Agent を callable service に切り出してから。
+</div>
+
+<!--
+AI Workspace では Agent ID / description / enabled / privilege が agents テーブルにある。
+Router は getEnabledAgentMap() を読み、user privilege で候補を絞ってから
+structured output で agentId / confidence / reason を返せる。
+
+現在の /agent route は既存 chat の selected_agent と request の agentType が異なると
+selected_agent mismatch で拒否する。そのため小さい変更で実現できるのは、
+最初の質問で1 Agentを選び、その chat では同じ Agentを使い続ける方式。
+
+質問ごとの切替・複数 Agent 統合を行うなら、固定の router-agent を追加し、
+route 内部に埋め込まれた Agent 構築処理を runAgent(agentType, context) のような
+callable service へ切り出す必要がある。
+
+General / MI Agent はブラウザから AgentCore Runtime を直接 invoke するため、
+通常 /agent route に入った後では切替できない。送信前 routing または proxy が必要。
+
+AI SDK の公式 Subagents は parent agent の tool.execute から child agent を呼ぶパターン。
+Subagent tools では needsApproval を使えないため、Holiday / User Admin の書き込みは
+初回 routing で既存 Agent へ渡す方が現時点では安全。
+
+Sources:
+https://ai-sdk.dev/v7/docs/agents/subagents
+https://github.com/mhigroup/A0005-AI-Workspace/blob/develop/frontend/app/api/chat/histories/%5BhistoryId%5D/agent/route.ts
+https://github.com/mhigroup/A0005-AI-Workspace/blob/develop/frontend/app/api/chat/histories/%5BhistoryId%5D/agent/agentRegistry.ts
+https://github.com/mhigroup/A0005-AI-Workspace/blob/develop/frontend/lib/agents/agentConfig.ts
+https://github.com/mhigroup/A0005-AI-Workspace/blob/develop/terraform/modules/dynamo/agents/variables.tf
+-->
+
+---
+layout: default
+---
+
 # 型付き Context: 何が嬉しい？
 
 ツールが必要なサーバー側の値を **schema として宣言** できる
