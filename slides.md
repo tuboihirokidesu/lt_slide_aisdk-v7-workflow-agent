@@ -1042,7 +1042,7 @@ https://github.com/mhigroup/A0005-AI-Workspace/blob/develop/terraform/modules/dy
 layout: default
 ---
 
-# 型付き Context: 何が嬉しい？
+# API key と権限を、ツールごとに型安全に渡す
 
 ツールが必要なサーバー側の値を **schema として宣言** できる
 
@@ -1090,7 +1090,7 @@ await agent.generate({
 <v-click>
 
 <div class="mt-3 text-sm opacity-90">
-嬉しさ: `execute` の `context` に型推論が効く。ツールごとに必要な権限・API key を分離でき、WorkflowAgent では <strong>serializable な値</strong> として step 境界を越えやすい。
+`execute` の `context` に型推論が効く。ツールごとに必要な権限・API key を分離でき、WorkflowAgent では <strong>serializable な値</strong> として step 境界を越えやすい。
 </div>
 
 </v-click>
