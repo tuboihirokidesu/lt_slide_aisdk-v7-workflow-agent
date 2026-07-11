@@ -1,7 +1,9 @@
 import { chromium } from 'playwright-chromium'
 
-// New section added — re-check the case study slides plus surrounding ones
-const slides = Array.from({ length: 50 }, (_, i) => i + 1)
+// Check every slide by default, or a comma-separated subset via SLIDES=9,16,25.
+const slides = process.env.SLIDES
+  ? process.env.SLIDES.split(',').map(Number)
+  : Array.from({ length: 54 }, (_, i) => i + 1)
 const browser = await chromium.launch()
 const ctx = await browser.newContext({ viewport: { width: 1920, height: 1080 } })
 const page = await ctx.newPage()

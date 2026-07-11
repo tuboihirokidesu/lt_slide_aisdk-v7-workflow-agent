@@ -1,9 +1,9 @@
 ---
 theme: default
-title: AI SDK v7 — WorkflowAgent を中心に
+title: AI SDK 7 — WorkflowAgent と Durable Agents
 info: |
   ## Vercel AI SDK v7
-  WorkflowAgent を軸に AI SDK 7 stable の新機能・破壊的変更・設計思想・残課題を一次情報からまとめた LT
+  WorkflowAgent を軸に AI SDK 7 stable と stable 後の更新を一次情報からまとめた 2026 年7月版 LT
 transition: none
 mdc: true
 fonts:
@@ -27,7 +27,7 @@ layout: cover
 <div class="flex flex-col h-full justify-between">
 
 <div>
-  <div class="mm-folio">Vercel · AI SDK 7 stable · 2026-06-25</div>
+  <div class="mm-folio">Vercel · AI SDK 7 stable · July 2026</div>
   <div class="mm-rule-thin mt-2"></div>
 </div>
 
@@ -36,22 +36,21 @@ layout: cover
   <div class="mm-display text-[10rem] leading-[1] italic -mt-2">v7</div>
   <div class="mm-rule-ultra mt-8 w-40"></div>
   <div class="mm-italic text-2xl mt-6 max-w-[36rem]">
-    WorkflowAgent を中心に — durable agent の時代へ
+    WorkflowAgent を中心に — 2026 年7月版
   </div>
 </div>
 
-<div class="flex justify-between items-end">
+<div class="flex items-end">
   <div class="mm-meta">
-    2026 · 06 · TSUBOI HIROKI
+    2026 · 07 · TSUBOI HIROKI
   </div>
-  <div class="mm-folio">No. 001</div>
 </div>
 
 </div>
 
 <!--
 AI SDK 7 は 2026-06-25 に stable release。
-2026-06-26 確認時点で npm latest は ai@7.0.2、@ai-sdk/workflow@1.0.2。
+2026-07-11 確認時点で npm latest は ai@7.0.22、@ai-sdk/workflow@1.0.22。
 -->
 
 ---
@@ -120,8 +119,6 @@ layout: default
 
 </div>
 
-<div class="absolute bottom-8 right-12 mm-folio">No. 002</div>
-
 ---
 layout: section
 ---
@@ -157,7 +154,7 @@ layout: default
 <v-click>
 
 「**新機能がない**」のではなく、Vercel が **Changesets で日次レベルにリリース**しているだけ
-（2026-06-26 確認時点で `ai@7.0.2`、`@ai-sdk/workflow@1.0.2`）
+（2026-07-11 確認時点で `ai@7.0.22`、`@ai-sdk/workflow@1.0.22`）
 
 </v-click>
 
@@ -173,23 +170,47 @@ layout: section
 layout: default
 ---
 
-# ToolLoopAgent の限界
+# ToolLoopAgent の限界 — 「消える」のは何か
 
-`ai` パッケージの標準的な `ToolLoopAgent` は **インメモリ完結** のループ
+`ToolLoopAgent` の **実行中 loop** はインメモリ。DB に保存したチャット履歴まで消えるわけではない
 
 <v-clicks>
 
-- プロセスが落ちると **進捗は全て消える**
-- ツール呼び出しが多段になるほど、再実行コストが跳ね上がる
-- 人間の承認を挟むには「待機」が必要だが、サーバーレス環境では難しい
-- 実運用で必要になるのは **永続化・再開・観測可能性**
+- DB に保存済みの `messages` / チャット履歴は **残る**
+- 障害時に失うのは、未保存の step・tool result・生成途中の回答などの **in-flight state**
+- 保存済み履歴から次の request を開始できるが、同じ checkpoint からの **自動再開ではない**
+- tool の副作用だけ成功して記録前に落ちると、再実行による二重処理を防ぐ **冪等性** が必要
+- step 単位の永続化・再試行・観測はアプリ側で設計する
 
 </v-clicks>
 
 <!--
-ToolLoopAgent 自体が悪いわけではない。
-シンプルなチャットや短いタスクならむしろこれで十分。
-本番で多段ツール呼び出しをする時にギャップが出る。
+ここで「プロセスが落ちると進捗がすべて消える」とは言わない。
+DB に保存済みのチャット履歴や tool result は残り、次の呼び出しの context に再利用できる。
+
+ただし、それは保存された履歴を使った「新しい agent 実行」であり、
+落ちた ToolLoopAgent の内部 loop を同じ位置から resume することではない。
+たとえば航空券検索が終わった後、その結果を保存する前に落ちれば検索はやり直しになる。
+
+さらに予約 API が成功した直後、成功結果の保存前に落ちると、
+外部では予約済みなのに DB では未完了に見える。再実行には idempotency key や照合処理が必要。
+
+messages、tool call、tool result、approval、step status を都度保存し、
+job queue と冪等性も実装しているなら、アプリ側ですでに durability の一部を構築している。
+WorkflowAgent の差は、この step checkpoint / replay / retry を runtime の責務として提供する点。
+
+AI Workspace の実装は経路ごとに異なる。
+通常の ToolLoopAgent route は、過去履歴とユーザー発話を DynamoDB から復元し、
+assistant 応答は基本的に onEnd で保存する。onStepEnd は telemetry / UI 更新が中心で、
+tool call / tool result を durable step として保存してはいない。
+コード上も timeout 時は onEnd が bypass され、部分応答は保存されないと明記されている。
+
+一方、General Agent の直叩き経路はより durable に近い。
+ユーザー発話の即時保存、assistant text がある HITL ゲート到達時の parts checkpoint、
+abort / disconnect / error 時の部分 assistant 保存、Claude SDK transcript の S3 mirror / resume がある。
+ただし pending approval の Queue はプロセスメモリ上で sticky session 前提。
+また tool の副作用を tool_use_id で実行前後に台帳化する汎用 idempotency layer はない。
+したがって「部分的な durability は自前実装済み。ただし Workflow step 相当の exactly-once / replay ではない」が正確。
 -->
 
 ---
@@ -225,35 +246,120 @@ sequenceDiagram
 layout: default
 ---
 
-# 悲劇編 vs 理想編
+# アプリ管理 vs Workflow runtime
 
 <div class="grid grid-cols-2 gap-x-6 mt-4">
 
 <div class="border-2 border-black p-5">
 <div class="mm-folio mb-1">A · ToolLoopAgent</div>
-<div class="mm-italic text-2xl mb-3">悲劇編</div>
+<div class="mm-italic text-2xl mb-3">application-managed</div>
 <ul class="text-sm leading-snug">
-<li>承認待ちの間に Vercel が <strong>コールドスタート / デプロイ / クラッシュ</strong></li>
-<li>→ プロセス消滅 → <strong>進捗が全部リセット</strong></li>
-<li>ユーザーが「OK」と言ったのに、また最初から <strong>「どのフライトが良かったっけ…」</strong> と聞き直し</li>
-<li><code v-pre>bookFlight</code> が失敗しても、<strong>検索→提案→承認まで再実行</strong></li>
-<li>どのツールがどこで詰まったかは <strong>ログを掘らないと判らない</strong></li>
+<li><code v-pre>needsApproval</code> は approval request を返し、その request は終了</li>
+<li>承認後は <strong>messages + approval response を再送</strong>して継続</li>
+<li>DB に保存済みの履歴・tool result は、次の実行で再利用できる</li>
+<li>未保存の in-flight state は失われ、同じ位置から自動再開はしない</li>
+<li>失敗時の再試行範囲と冪等性は <strong>アプリ側で設計</strong></li>
 </ul>
 </div>
 
 <div class="mm-invert-panel border-2 border-black p-5">
 <div class="mm-folio mb-1 opacity-80">B · WorkflowAgent</div>
-<div class="mm-italic text-2xl mb-3">理想編</div>
+<div class="mm-italic text-2xl mb-3">durable execution</div>
 <ul class="text-sm leading-snug">
-<li>承認待ちで <strong><code v-pre>workflow.suspend()</code></strong></li>
-<li>ユーザーが承認 → <strong><code v-pre>resume</code></strong> して続きから実行</li>
-<li><code v-pre>bookFlight</code> 失敗時は <strong>そのステップだけ自動再試行</strong></li>
-<li>検索結果は永続 step なので <strong>再ロード不要</strong></li>
-<li>各ツール呼び出しが Workflow ダッシュボードに <strong>独立 step</strong> として記録</li>
+<li>model call と <code v-pre>'use step'</code> tool の結果を <strong>durable に記録</strong></li>
+<li>プロセス障害・デプロイ後も、完了済み step を replay で再利用</li>
+<li><code v-pre>bookFlight</code> が <code v-pre>'use step'</code> なら <strong>その step を自動再試行</strong></li>
+<li>承認 UI は <code v-pre>addToolApprovalResponse</code> で messages に応答を追加</li>
+<li>各 durable step が Workflow ダッシュボードに記録</li>
 </ul>
 </div>
 
 </div>
+
+<!--
+AI Workspace に当てはめると、左側も単純な stateless ではない。
+通常 Agent はチャット履歴を DynamoDB に保存し、General Agent はさらに
+HITL ゲート・部分応答・debug parts・S3 transcript を checkpoint している。
+
+ただし message id の固定による PutItem 上書きは「メッセージ保存の dedupe」であり、
+外部 API や MCP tool の副作用に対する idempotency とは別物。
+承認済み tool が成功した直後、result の永続化前に落ちるケースでは、
+再開側がその成功を確実に判定できる汎用 execution ledger はまだない。
+-->
+
+---
+layout: default
+---
+
+# 「履歴保存」と「実行記録」は別物
+
+<div class="grid grid-cols-2 gap-x-6 mt-3">
+
+<div class="border-2 border-black p-5">
+<div class="mm-folio mb-1">AI Workspace</div>
+<div class="mm-italic text-xl mb-3">history / transcript</div>
+<ul class="text-sm leading-snug">
+<li><code v-pre>chats</code>: user / assistant の本文</li>
+<li><code v-pre>chat_message_parts</code>: tool-use / tool-result / HITL / debug parts</li>
+<li>S3 SessionStore: Claude SDK transcript</li>
+<li>UI と model context の <strong>復元材料</strong></li>
+</ul>
+<div class="mt-3 pt-3 border-t border-black text-xs">
+通常の ToolLoopAgent route は最終応答保存が中心。General Agent は上記 checkpoint まで実装。
+</div>
+</div>
+
+<div class="mm-invert-panel border-2 border-black p-5">
+<div class="mm-folio mb-1 opacity-80">WorkflowAgent + World</div>
+<div class="mm-italic text-xl mb-3">execution ledger</div>
+<ul class="text-sm leading-snug">
+<li>model call は <strong>durable step</strong></li>
+<li>tool は <code v-pre>execute</code> が <code v-pre>'use step'</code> の場合に durable</li>
+<li>run / event / step の input・output・status・attempt を記録</li>
+<li>完了済み output を replay、未完了 step を queue で再試行</li>
+</ul>
+<div class="mt-3 pt-3 border-t border-white/50 text-xs">
+保存先: Vercel managed cloud / Postgres tables / Local JSON
+</div>
+</div>
+
+</div>
+
+<div class="mt-4 border-l-4 border-black pl-4 text-sm leading-snug">
+<strong>Durable ≠ exactly-once.</strong> 外部 API の副作用は、安定した <code v-pre>stepId</code> を idempotency key に使う。
+</div>
+
+<div class="mt-2 text-[10px] opacity-80">
+Chat UI の履歴は引き続きアプリ DB へ。World は実行状態を保存する別レイヤー。
+</div>
+
+<!--
+AI Workspace でも、General Agent は tool-use / tool-result を保存している。
+chat_message_parts には MyUIMessage.parts の JSON、S3 SessionStore には Claude SDK transcript が入る。
+したがって「HITL だけ保存、tool call は未保存」ではない。
+
+ただし、これは主に表示・会話文脈を復元するための snapshot。
+通常の ToolLoopAgent route では onStepEnd ごとの durable step record はなく、
+General Agent でも全 tool に対する status / attempt / retry ownership の共通台帳はない。
+
+WorkflowAgent の model call は内部で 'use step' として実行される。
+tool については execute 関数を 'use step' にしたものだけが、自動 retry / persistence の対象。
+World は append-only event log を中心に run / event / step / hook を管理する。
+
+保存先は World 実装で変わる。
+- Vercel World: Vercel managed storage + Vercel Queues
+- Postgres World: PostgreSQL の runs / events / steps / hooks + graphile-worker
+- Local World: .workflow-data/ の JSON。queue は in-memory なので開発用
+
+WorkflowAgent の needsApproval は messages 継続。
+承認状態をチャットとして再表示するには、アプリ DB への messages 保存が引き続き必要。
+同じ workflow run を承認待ちで suspend したい場合は Workflow SDK Hook を使う別設計。
+
+最後に重要な注意。
+Workflow runtime が step を retry できても、外部 API の exactly-once までは自動保証しない。
+外部 API 成功後、step_completed の記録前に落ちると再実行され得る。
+Workflow SDK は getStepMetadata().stepId を外部 API の idempotency key に使うことを推奨している。
+-->
 
 ---
 layout: default
@@ -262,16 +368,16 @@ layout: default
 # コードで見る差分
 
 ```ts {all|2-3|5-6}
-// AI SDK 6 — ToolLoopAgent: 承認待ちで死ぬ
+// AI SDK 6 — ToolLoopAgent: 承認は messages 継続
 const agent = new ToolLoopAgent({
   tools: { searchFlights, searchHotels, bookFlight, bookHotel },
 })
-await agent.generate({ prompt: '来週東京3泊、予算15万' })
-// ↑ ここで「承認待ち = 数分」のあいだに関数寿命が切れたら全消失
+const first = await agent.generate({ prompt: '来週東京3泊、予算15万' })
+// approval request を返して終了。継続には messages の保存・再送が必要
 ```
 
 ```ts {all|2|5|7-12|14}
-// AI SDK 7 — WorkflowAgent: サスペンド・再開対応
+// AI SDK 7 — WorkflowAgent: durable step + approval 継続
 async function bookFlightStep(input) {
   'use step'
   return bookFlight(input)
@@ -280,18 +386,15 @@ async function bookFlightStep(input) {
 export async function chat(messages) {
   'use workflow'
   const agent = new WorkflowAgent({
+    model: 'anthropic/claude-sonnet-4-6',
     tools: {
       bookFlight: tool({ execute: bookFlightStep, needsApproval: true }),
     },
   })
   await agent.stream({ messages, writable: getWritable() })
 }
-// ↑ 承認待ちは workflow.suspend → resume、各 step が独立に retry 可能
+// 承認応答は messages に追加して再 POST。'use step' tool は retry 可能
 ```
-
-<div class="mt-1 text-[10px] opacity-75">
-  境界: <code v-pre>'use workflow'</code> は実行単位、<code v-pre>'use step'</code> は永続 step、<code v-pre>needsApproval</code> は承認待ちを跨ぐ
-</div>
 
 ---
 layout: default
@@ -305,16 +408,16 @@ layout: default
 
 | 観点 | ToolLoopAgent (`ai`) | WorkflowAgent (`@ai-sdk/workflow`) |
 |---|---|---|
-| ランタイム | インメモリ | Workflow runtime（World が queue / 永続化を担当） |
-| 耐障害性 | プロセス落ちで全消失 | **再起動を跨いで生存** |
-| ツール再試行 | 手動 | **ステップ単位で自動** |
-| Human-in-the-loop | あり | あり + **サスペンド越えで生存** |
+| ランタイム | loop はインメモリ<br>履歴保存はアプリ側 | Workflow runtime（World が queue / 永続化を担当） |
+| 耐障害性 | 実行中 loop はインメモリ | **workflow step は再起動を跨いで生存** |
+| ツール再試行 | アプリ側で設計 | **`'use step'` tool は自動** |
+| Human-in-the-loop | messages で継続 | messages で継続 + **durable step** |
 | `generate()` | あり | **未実装**（`throw new Error`） |
 | `stream()` | あり | プライマリ API |
 | 出力 | streamText の戻り値 | `writable` パラメタに `ModelCallStreamPart` |
 
 <div class="mt-2 text-[10px] opacity-80">
-World = Workflow DevKit の実行バックエンド。Local World は開発用、Vercel World は Vercel 上の managed backend。
+World = Workflow DevKit の実行バックエンド。公式は Local（開発）/ Vercel（managed）/ Postgres（self-host）。
 </div>
 
 <!--
@@ -430,9 +533,9 @@ sequenceDiagram
   loop until stop
     A->>L: next step
     L-->>A: tool call
-    A->>T: execute (step)
+    A->>T: execute ('use step' の場合)
     T-->>A: result (resume-safe)
-    Note over W,T: 各ステップが永続化される
+    Note over W,T: model call と durable tool step が永続化される
   end
   A-->>W: writable stream
   W-->>R: run.readable
@@ -467,7 +570,9 @@ export default function Chat() {
 }
 ```
 
-公式ガイド例では `useMemo` あり。必須 API ではなく、transport identity を安定させるため。POST は `x-workflow-run-id` を返し、`GET /api/chat/{runId}/stream` で同じ run の readable を再取得する
+<div class="mt-2 text-[11px] border-t-2 border-black pt-2">
+  <code>x-workflow-run-id</code> + <code>GET /api/chat/{runId}/stream</code> は <strong>切断 stream の同一 run 再接続</strong>。approval は messages へ応答を追加して再 POST する別フロー。
+</div>
 
 <!--
 通常の useChat の transport を WorkflowChatTransport に差し替えた上で、サーバー側に reconnect endpoint を生やす。
@@ -498,6 +603,32 @@ WorkflowAgent は「Run agents」の中核。beta 時代の細かい差分より
 **production agent stack の一部として stable 化した**ことが今回の大きな変化
 
 </v-click>
+
+---
+layout: default
+---
+
+# Stable 後の更新 — 7.0.22
+
+<div class="mm-folio mt-1 mb-3">2026-07-11 確認 · ai@7.0.22 / @ai-sdk/workflow@1.0.22</div>
+
+<v-clicks>
+
+- **Resumable stream の hardening** — orphan chunk 修復、step payload 削減、`finishReason` / `totalUsage` 追加
+- **MCP security** — `fingerprintTools` / `detectToolDrift` で tool definition の rug pull を検知
+- **Approval security** — 署名 metadata 保持、prototype-property collision 対策
+- **API の安定化** — `repairToolCall` が stable、MCP tool call に `maxRetries`
+- **Beyond text の拡張** — streaming transcription、video reference input、Cartesia provider
+
+</v-clicks>
+
+<div class="mt-5 border-t-2 border-black pt-3 text-base">
+stable 後の主戦場は、<strong>新しい agent API の追加だけでなく、再接続・承認・MCP の安全性と運用性</strong>。
+</div>
+
+<div class="mt-2 text-xs opacity-70">
+Source: <a href="https://github.com/vercel/ai/blob/main/packages/ai/CHANGELOG.md">ai CHANGELOG</a> / <a href="https://github.com/vercel/ai/blob/main/packages/workflow/CHANGELOG.md">@ai-sdk/workflow CHANGELOG</a>
+</div>
 
 ---
 layout: default
@@ -655,32 +786,33 @@ layout: default
 
 # ニュアンス — Workflow SDK は実は portable
 
-調査して分かった重要な事実: **`'use workflow'` は Vercel 完全ロックインではない**
+<div class="grid grid-cols-2 gap-8 mt-5 text-sm leading-snug">
 
-<v-clicks>
+<div class="border-t-2 border-black pt-3">
+<div class="mm-folio mb-2">Backend</div>
+<ul>
+<li><strong>Worlds</strong> という pluggable backend 抽象化</li>
+<li>公式: <strong>Local / Vercel / Postgres</strong></li>
+<li>Postgres World は Docker / Kubernetes / VM / 任意 cloud で self-host</li>
+<li>その他は community / custom World</li>
+</ul>
+</div>
 
-- Workflow SDK には **"Worlds" という pluggable backend 抽象化** がある
-- 公式サポート: **Vercel / AWS / DigitalOcean / Docker / 自前ホスト**
-- コミュニティ実装も存在（例: [karthikscale3/aws-workflow](https://github.com/karthikscale3/aws-workflow) — AWS Lambda + DynamoDB + SQS + S3）
-- 公式ドキュメントの謳い文句:
+<div class="border-t-2 border-black pt-3">
+<div class="mm-folio mb-2">Lock-in</div>
+<ul>
+<li>✅ backend は Worlds で差し替え可能</li>
+<li>⚠️ directive / deterministic replay 仕様への依存は残る</li>
+<li>⚠️ managed は Vercel、self-host は Postgres が中心</li>
+<li>⚠️ 非 Vercel World は利用環境で E2E 検証</li>
+</ul>
+</div>
 
-</v-clicks>
+</div>
 
-<v-click>
-
-> Run locally, self-host, or swap every component — Workflow SDK is fully portable.
-
-</v-click>
-
-<v-click>
-
-つまり実態は:
-
-- ❌ "Vercel に強くロックイン" は誇張
-- ✅ "**Workflow SDK の directive 仕様**" にロックイン
-- ✅ AI SDK の `WorkflowAgent` の **ドキュメントが Vercel World 前提で書かれている** だけ
-
-</v-click>
+<div class="mt-6 border-2 border-black p-4 text-base">
+結論: <strong>Vercel 完全ロックインではないが、Workflow SDK の実行モデルにはロックインする。</strong>
+</div>
 
 ---
 layout: default
@@ -748,7 +880,10 @@ const research = tool({
     }).generate({ prompt: topic, abortSignal })
     return r.text
   },
-  toModelOutput: ({ output }) => output.slice(0, 1000),
+  toModelOutput: ({ output }) => ({
+    type: 'text',
+    value: output.slice(0, 1000),
+  }),
 })
 ```
 
@@ -840,7 +975,7 @@ await streamText({
 ```
 
 <div class="mt-3 text-sm opacity-85">
-  承認ポリシーを <strong>リクエスト単位</strong> で差し替えられる。例外として <code v-pre>WorkflowAgent</code> は suspend/resume と結合するため、最新 docs でも <code v-pre>needsApproval</code> を使う
+  承認ポリシーを <strong>リクエスト単位</strong> で差し替えられる。例外として <code v-pre>WorkflowAgent</code> は workflow-aware な approval フローのため、最新 docs でも tool 定義の <code v-pre>needsApproval</code> を使う
 </div>
 
 ---
@@ -934,21 +1069,24 @@ layout: default
 
 # その他の整理（ざっくり）
 
-<v-clicks>
-
-- **ESM only** — CommonJS（`require()`）廃止、`type: "module"` 必須
-- **Node.js 22+ 必須** — 18 / 20 はサポート外、本番は 24 LTS / 26 推奨
-- **画像・音声 API の stable 化** — `generateImage` / `generateSpeech` / `transcribe`
-- **Realtime API** — OpenAI / Google / xAI の speech-to-speech 系を experimental 提供
-- **lifecycle rename** — `onFinish` → `onEnd`、`onStepFinish` → `onStepEnd`
-- **`reasoning` トップレベルオプション** — provider 横断で reasoning effort 制御
-- **メッセージ部品の統一** — `image-*` → `file-*` に統合（画像も "image media type を持つ file"）
-- **`reasoning-file` 新設** — 推論トレース内で参照されるファイル用の専用タイプ
-- **System message 安全化** — `messages: [{ role: 'system' }]` をデフォルト拒否（プロンプトインジェクション対策）
-- **MCP のセキュリティ強化** — HTTP redirect デフォルトが `'follow'` → `'error'`（SSRF 対策）
-- **stop condition リネーム** — `stepCountIs` → `isStepCount`
-
-</v-clicks>
+<div class="grid grid-cols-2 gap-8 mt-5 text-sm leading-snug">
+<ul>
+<li><strong>ESM only</strong> — <code>require()</code> 廃止、ESM <code>import</code> へ</li>
+<li><strong>Node.js 22+</strong> — 18 / 20 はサポート外</li>
+<li><strong>画像・音声 stable</strong> — <code>generateImage</code> / <code>generateSpeech</code> / <code>transcribe</code></li>
+<li><strong>Realtime API</strong> — OpenAI / Google / xAI を experimental 提供</li>
+<li><strong>lifecycle</strong> — <code>onFinish</code> → <code>onEnd</code>、<code>onStepFinish</code> → <code>onStepEnd</code></li>
+<li><strong>reasoning</strong> — provider 横断のトップレベル option</li>
+</ul>
+<ul>
+<li><strong>message part</strong> — image を canonical <code>file</code> part に統合</li>
+<li><strong>reasoning-file</strong> — 推論中の参照 file 用 type</li>
+<li><strong>System message</strong> — messages 内の system role をデフォルト拒否</li>
+<li><strong>MCP redirect</strong> — <code>'follow'</code> → <code>'error'</code>（SSRF 対策）</li>
+<li><strong>stop condition</strong> — <code>stepCountIs</code> → <code>isStepCount</code></li>
+<li><strong>package.json</strong> — <code>type: "module"</code> の要否は runtime / bundler 次第</li>
+</ul>
+</div>
 
 ---
 layout: default
@@ -1002,7 +1140,7 @@ layout: default
 | WorkflowAgent に **Subagent 第一級 API** が入った | ❌ CHANGELOG / docs / ソースで**裏付けなし**。専用 API は存在しない |
 | **`toolsContext` のサポート**が WorkflowAgent に入っている | ✅ v7 stable docs で対応済み。ただし workflow 境界を跨ぐため **serializable 前提** |
 | **`generate()` が無いのは本物のギャップ** | ✅ ソースで `throw new Error('Not implemented')` を確認 |
-| **Vercel Workflow への完全ロックイン** | △ 当初そう書いたが、実は **Workflow SDK の "Worlds" 抽象化** で AWS / DigitalOcean / Docker / 自前ホストも可能。AI SDK の docs が Vercel World 前提なだけ |
+| **Vercel Workflow への完全ロックイン** | △ **Worlds** で backend は差し替え可能。公式は Local / Vercel / Postgres。directive / replay 仕様への依存は残る |
 
 <!--
 LLM が生成した「最新動向」をそのまま信じない。
@@ -1019,7 +1157,7 @@ layout: default
 |---|---|---|
 | Workflow SDK の directive 仕様への暗黙の依存 | ★★★ | Worlds 抽象化で backend は差替え可能だが、directive そのものへの依存は残る |
 | `stream()` のみで `generate()` が無い | ★★★★ | シンプルな同期処理が書きにくい |
-| Subagent との統合がまだ無い | ★★★ | マルチエージェントを durable にするのが面倒 |
+| Subagent の専用 durable 統合が無い | ★★★ | tool から子 Agent を呼ぶ公式パターンはあるが、親子の durable 設計は自前 |
 | context は serializable 前提 | ★★★ | DB client / SDK client など live object は step 内で再生成が必要 |
 | WorkflowAgent だけ承認 API が `needsApproval` | ★★ | 他 API の `toolApproval` と覚え分けが必要 |
 | workflow run と外部 APM の紐付け | ★★ | AI SDK 側 telemetry は強化。Workflow の runId / step / tool trace の設計は別途必要 |
@@ -1036,7 +1174,7 @@ layout: default
 2. **Subagents の第一級サポート** — `createSubagent()` のような API で「親 durable・子も durable」を自然に書きたい
 3. **AI SDK レベルでの "World" 公式サポート** — Workflow SDK 側に Worlds は既にあるので、AI SDK のドキュメントでも非 Vercel World の例を提示してほしい
 4. **WorkflowAgent の observability recipe** — `runId` / step / tool / model call を外部 APM と紐付ける定石
-5. **承認 UI のテンプレート** — `x-workflow-run-id` と reconnect endpoint まで含む標準パターン
+5. **承認継続と stream 再接続の整理** — messages 再 POST と同一 run reconnect の違いをより明確に
 6. **非 serializable resource の定石** — context ではなく step 内再接続、という公式パターン
 
 </v-clicks>
@@ -1097,7 +1235,7 @@ layout: default
 
 <v-clicks>
 
-1. **Node.js 22+ / ESM 化** — CJS `require()` は廃止、`"type": "module"` へ
+1. **Node.js 22+ / ESM 化** — CJS `require()` は廃止、ESM `import` へ（package 設定は runtime に合わせる）
 2. **`system` → `instructions`** — `messages` 内の `{ role: 'system' }` はデフォルト拒否
 3. **lifecycle rename** — `onFinish` → `onEnd`、`onStepFinish` → `onStepEnd`
 4. **context 分割** — `experimental_context` → `runtimeContext` / `toolsContext`
@@ -1155,48 +1293,49 @@ layout: default
 
 # After: WorkflowAgent + 'use workflow'
 
-<div class="mm-folio mt-1 mb-2">After · workflow run（永続・関数寿命と独立）</div>
+<div class="mm-folio mt-1 mb-2">After · durable steps + messages-based approval continuation</div>
 
 ```text
 Browser ─POST─▶ /api/chat/.../agent  ← 薄くなる（start(chat) して stream 配管）
                   │
                   ▼
-           workflow run（永続・関数寿命と独立）
-           ├─ step: prepareContext        ← 履歴 / memory / MCP / skill ロード（1 回だけ）
-           ├─ step: buildSystemPrompt
-           ├─ WorkflowAgent.stream({ writable }) ← 各ツール呼び出しが独立 step
-           │   ├─ step: tool call A       ← 失敗したらこの step だけ retry
-           │   ├─ step: tool call B (destructive) → workflow.suspend()
-           │   │           ▲   Browser ◀─ 「承認待ち」イベント
-           │   │           │   Browser ─POST /agent/resume { runId, decision (HMAC) }
-           │   │           ▼   workflow resume（messages を再送しない）
-           │   ├─ step: tool call C
-           │   └─ ...
-           ├─ step: persistAssistant     ← DynamoDB / AgentCore Memory / title
-           └─ done
+           workflow run A
+           ├─ step: loadHistory / buildSystemPrompt ← serializable data だけ返す
+           ├─ WorkflowAgent.stream({ writable })
+           │   ├─ step: model call
+           │   ├─ step: static tool A ('use step') ← この step を retry
+           │   └─ destructive tool → approval request を出力し loop を pause
+           └─ Browser ◀─ 「承認待ち」
+
+Browser: addToolApprovalResponse(...)
+         └─ updated messages を /agent へ自動 POST
+                    └─ workflow run B で承認を再検証し継続
+                        └─ step: persistAssistant ← 冪等に保存
                   │
                   ▼
         run.readable ─▶ createModelCallToUIChunkTransform ─▶ Browser
-        WorkflowChatTransport が切断時に同じ run へ再接続
+        ※ WorkflowChatTransport の同一 run 再接続は「stream 切断」用
 ```
 
 ---
 layout: default
 ---
 
-# 既知のペインポイント、何個消えるか
+# 既知のペインポイントはどう変わるか
+
+<div class="text-[11px] leading-tight">
 
 | いまの制約 (`route.ts` のコメント) | WorkflowAgent 化での扱い |
 |---|---|
-| Bedrock Claude p99 5 分超で 540s に張り付き | **解消** — step は関数寿命を超えて継続 |
-| timeout 発動時 `onFinish` バイパスで部分応答が保存されない | **解消** — 各 step が永続化、最後の保存 step は必ず走る |
-| `ToolLoopAgent` は `onAbort` 未サポート ([vercel/ai#12117](https://github.com/vercel/ai/issues/12117)) | **回避不要** — abort ではなく step ごと durable |
-| `reader.cancel()` 後の `onFinish` 未文書化 → 二重保存ガード | **不要** — 保存は最終 step で 1 回 |
-| MCP クライアント `try/finally` cleanup（リーク防止） | **構造的に楽** — step 単位で lifecycle / `runtimeContext` 共有 |
-| `retry-without-files` の二重 `buildAgent` | **不要** — 同一 agent に messages 差し替え step を噛ませる |
-| HITL: `parseApprovalContinuation` / `sanitizeApprovalMessages` 200 行超 | **大幅縮退** — `suspend/resume` + HMAC（決定の改ざん検知）だけ |
-| `prepareStep` で reasoning signature 修復 | **そのまま** — v7 で `prepareStep` stable 化 |
-| `experimental_telemetry` で Langfuse | **`telemetry` リネームのみ** — 各 step が workflow dashboard でも可視化 |
+| Bedrock Claude p99 5 分超で 540s に張り付き | **改善余地** — 複数 step の合計時間は分割できるが、単一 model-call step の制限は残る |
+| timeout 発動時 `onFinish` バイパスで部分応答が保存されない | **要再設計** — chunk は durable だが、失敗時に最終保存 step が成功する保証はない |
+| `onAbort` / `reader.cancel()` 後の保存 | **別論点** — durability と cancellation を分け、保存は冪等 step に集約 |
+| MCP クライアント `try/finally` cleanup（リーク防止） | **未解決** — live client は context 共有できない。step 内再接続または固定 wrapper が必要 |
+| `retry-without-files` の二重 `buildAgent` | **簡素化可能** — fallback 分岐は残るが、workflow 上で明示的に構造化できる |
+| HITL: `parseApprovalContinuation` / `sanitizeApprovalMessages` 200 行超 | **縮小可能** — AI SDK 標準の approval message protocol に寄せられる範囲で削除 |
+| `experimental_telemetry` で Langfuse | **移行容易** — `telemetry` へリネーム。workflow run と外部 trace の相関は別途設計 |
+
+</div>
 
 ---
 layout: default
@@ -1210,9 +1349,9 @@ layout: default
 <div class="mm-folio mb-1">A · UX</div>
 <div class="mm-italic text-xl mb-2">ユーザー体感</div>
 
-- **タブ閉じても応答が消えない** — `WorkflowChatTransport` で同 run に再接続。長時間 Bedrock 待ちでもロストしない
-- **承認後のレイテンシが落ちる** — system prompt 再構築・履歴 hydrate が無くなり、文脈をそのまま継続
-- **長文回答が切れない** — 540s の壁が事実上消える
+- **一時的な stream 切断から復旧** — `WorkflowChatTransport` が同 run の chunk 位置から再接続
+- **ページ再読込みも設計可能** — runId / chat state を保存し、reconnect endpoint へ戻す
+- **承認 UI を標準 protocol 化** — `addToolApprovalResponse` で履歴を保ったまま継続
 
 </div>
 
@@ -1220,8 +1359,8 @@ layout: default
 <div class="mm-folio mb-1">B · Ops</div>
 <div class="mm-italic text-xl mb-2">運用・デバッグ</div>
 
-- **詰まった kintone ツールが一発で見える** — Workflow ダッシュボードに step 単位 timeline
-- **MCP gateway 一時障害でリトライ可能** — 失敗した step だけ自動再試行、会話まるごと失敗しない
+- **詰まった kintone ツールが見える** — <code v-pre>'use step'</code> で固定 wrapper した tool は step 単位 timeline
+- **MCP 一時障害に対策を選べる** — MCP `maxRetries` または durable step wrapper。動的 tool は要検証
 - **input-too-long 等のフォールバックが宣言的** — `try/catch` ネスト → 「失敗したら次の step」
 
 </div>
@@ -1230,9 +1369,9 @@ layout: default
 <div class="mm-folio mb-1">C · Code</div>
 <div class="mm-italic text-xl mb-2">コード量</div>
 
-- **`hitlUtils.ts` / `sanitizeApprovalMessages.ts` の半分以上が消える** — 承認継続フロー再構築コードが大半
-- **`buildAgent` ファクトリの二重生成が消える** — retry-without-files も同 agent への再 stream で済む
-- **`assistantPersistedForTurn` 二重保存ガードが不要** — 最終 step が保存
+- **独自 HITL parser を減らせる** — 標準 approval part と `useChat` に寄せた範囲で縮小
+- **agent 構築と workflow orchestration を分離** — 固定 tool 定義と serializable context の境界が明確
+- **保存処理を集約** — 冪等な最終 step に寄せ、retry での二重実行を防ぐ
 
 </div>
 
@@ -1244,30 +1383,29 @@ layout: default
 
 # 移行後コード骨子
 
-```ts {all|1|4-5|7-14|16-19|21}
-'use workflow'
+```ts {all|1-4|7-10|12-17|19-23|all}
+// module scope: execute は 'use step' 付き
+const workflowTools = {
+  search: tool({ inputSchema: searchSchema, execute: searchStep }),
+  write: tool({ inputSchema: writeSchema, execute: writeStep, needsApproval: true }),
+}
 
 export async function agentChat(input: AgentChatInput) {
-  const ctx = await prepareContext(input)
+  'use workflow'
+  const messages = await loadMessagesStep(input.historyId)
 
   const agent = new WorkflowAgent({
-    id: `mhi-${input.agentType}`,
-    model: createLanguageModel(input.model),
-    instructions: ctx.system,
-    stopWhen: isStepCount(input.maxSteps ?? 10),
-    tools: ctx.workflowTools,
-    runtimeContext: { requestId: input.requestId },
-    toolsContext: ctx.toolsContext,
-    prepareStep: repairReasoning,
+    model: input.modelId,
+    instructions: await buildPromptStep(input),
+    tools: workflowTools,                // step から返さない
+    toolsContext: { search: { tenantId: input.tenantId } },
   })
 
   const result = await agent.stream({
-    messages: ctx.modelMessages,
-    writable: getWritable<ModelCallStreamPart>(),
+    messages, writable: getWritable<ModelCallStreamPart>(),
   })
-
-  await persistAssistant(result, ctx)
-  return { messages: result.messages }
+  await persistAssistantStep({ turnId: input.turnId, messages: result.messages })
+  return result
 }
 ```
 
@@ -1275,7 +1413,7 @@ export async function agentChat(input: AgentChatInput) {
 layout: default
 ---
 
-# 呼び出し側はぐっと薄く
+# 呼び出し側と承認継続
 
 ```ts {all|3-4|6}
 // frontend/app/api/chat/histories/[historyId]/agent/route.ts
@@ -1289,22 +1427,22 @@ export async function POST(req: Request) {
 }
 ```
 
-<div class="mt-2 text-sm opacity-80">
-  reconnect 用に <code>GET .../agent/{runId}/stream</code> も用意し、<code>getRun(runId).getReadable({ startIndex })</code> を返す
-</div>
+```tsx {all|2-5|7-11}
+const { addToolApprovalResponse } = useChat({
+  transport, // useMemo で作った WorkflowChatTransport
+  sendAutomaticallyWhen:
+    lastAssistantMessageIsCompleteWithApprovalResponses,
+})
 
-```ts {all|3|4|5}
-// 新設: .../agent/resume/route.ts  — HITL 継続は超薄い
-export async function POST(req: Request) {
-  const { runId, decision } = await req.json()
-  verifyHmac(decision)                                  // 改ざん検知だけ残す
-  await resume(runId, { approval: decision })
-  return new Response(null, { status: 204 })
-}
+// approval-requested の UI から呼ぶ
+addToolApprovalResponse({
+  id: part.approval.id,
+  approved: true,
+})
 ```
 
-<div class="mt-3 text-sm opacity-80">
-  → <code>messages</code> 全量再送・再 hydrate が消える。承認 UI は <code>runId</code> と HMAC 署名つき decision だけ POST すれば済む
+<div class="mt-2 text-[11px] opacity-75 border-t-2 border-black pt-2">
+  approval は <strong>messages を同じ POST endpoint へ再送</strong>。stream 切断は <strong>GET /{runId}/stream</strong> で同一 run に reconnect。
 </div>
 
 ---
@@ -1351,13 +1489,13 @@ layout: default
 <div>
 <div class="mm-folio mb-1">02</div>
 <div class="mm-italic text-xl">WorkflowAgent</div>
-<div class="text-sm">ToolLoopAgent の durable 版。永続化・再開・承認を任せられる</div>
+<div class="text-sm">model call と 'use step' tool を durable 化。承認継続は messages ベース</div>
 </div>
 
 <div>
 <div class="mm-folio mb-1">03</div>
 <div class="mm-italic text-xl">Directives</div>
-<div class="text-sm">React 起源の系譜が膨張。だが Workflow SDK は Worlds で portable</div>
+<div class="text-sm">directive / replay 仕様に依存。backend は Worlds で差し替え可能</div>
 </div>
 
 <div>
@@ -1369,13 +1507,13 @@ layout: default
 <div>
 <div class="mm-folio mb-1">05</div>
 <div class="mm-italic text-xl">Strategy</div>
-<div class="text-sm">ToolLoopAgent で開発 → 必要なら WorkflowAgent + 任意 World</div>
+<div class="text-sm">ToolLoopAgent で開発 → 必要なら WorkflowAgent + 検証済み World</div>
 </div>
 
 <div>
 <div class="mm-folio mb-1">06</div>
 <div class="mm-italic text-xl">Migration</div>
-<div class="text-sm">AI Workspace の気合いコードは WorkflowAgent で体系的に縮退する</div>
+<div class="text-sm">HITL / 保存 / retry を責務ごとに再配置。動的 MCP は引き続き要検証</div>
 </div>
 
 <div>
@@ -1419,7 +1557,9 @@ layout: default
 - [zenn: ディレクティブ問題](https://zenn.dev/tsuboi/articles/3f00d532bcb4dc)
 - [Workflow SDK (workflow-sdk.dev)](https://workflow-sdk.dev)
 - [vercel/workflow (GitHub)](https://github.com/vercel/workflow)
-- [aws-workflow — AWS World 実装](https://github.com/karthikscale3/aws-workflow)
+- [Workflow SDK Worlds](https://workflow-sdk.dev/worlds)
+- [Postgres World — 公式 self-host backend](https://workflow-sdk.dev/worlds/postgres)
+- [Workflow SDK Idempotency](https://workflow-sdk.dev/docs/foundations/idempotency)
 
 </div>
 
