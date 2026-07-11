@@ -246,34 +246,45 @@ sequenceDiagram
 layout: default
 ---
 
-# アプリ管理 vs Workflow runtime
+# 違いは「障害後の再開」を誰が判断するか
 
 <div class="grid grid-cols-2 gap-x-6 mt-4">
 
 <div class="border-2 border-black p-5">
-<div class="mm-folio mb-1">A · ToolLoopAgent</div>
-<div class="mm-italic text-2xl mb-3">application-managed</div>
-<ul class="text-sm leading-snug">
-<li><code v-pre>needsApproval</code> は approval request を返し、その request は終了</li>
-<li>承認後は <strong>messages + approval response を再送</strong>して継続</li>
-<li>DB に保存済みの履歴・tool result は、次の実行で再利用できる</li>
-<li>未保存の in-flight state は失われ、同じ位置から自動再開はしない</li>
-<li>失敗時の再試行範囲と冪等性は <strong>アプリ側で設計</strong></li>
-</ul>
+<div class="mm-folio mb-1">AI Workspace · ToolLoopAgent</div>
+<div class="mm-italic text-2xl mb-3">アプリが再開を管理</div>
+<ol class="text-sm leading-snug">
+<li>履歴・tool result を DB に保存</li>
+<li>障害後、<strong>どこまで完了したかをアプリが判断</strong></li>
+<li>必要な処理を選び、agent を新しく起動</li>
+</ol>
+<div class="mt-3 pt-3 border-t border-black text-xs leading-snug">
+会話は復元できる。ただし、実行位置は自動では戻らない。
+</div>
 </div>
 
 <div class="mm-invert-panel border-2 border-black p-5">
-<div class="mm-folio mb-1 opacity-80">B · WorkflowAgent</div>
-<div class="mm-italic text-2xl mb-3">durable execution</div>
-<ul class="text-sm leading-snug">
-<li>model call と <code v-pre>'use step'</code> tool の結果を <strong>durable に記録</strong></li>
-<li>プロセス障害・デプロイ後も、完了済み step を replay で再利用</li>
-<li><code v-pre>bookFlight</code> が <code v-pre>'use step'</code> なら <strong>その step を自動再試行</strong></li>
-<li>承認 UI は <code v-pre>addToolApprovalResponse</code> で messages に応答を追加</li>
-<li>各 durable step が Workflow ダッシュボードに記録</li>
-</ul>
+<div class="mm-folio mb-1 opacity-80">WorkflowAgent</div>
+<div class="mm-italic text-2xl mb-3">runtime が再開を管理</div>
+<ol class="text-sm leading-snug">
+<li>各 step の input・output・status を記録</li>
+<li>完了済み step は <strong>保存済み output を再利用</strong></li>
+<li>未完了 step から自動再開・retry</li>
+</ol>
+<div class="mt-3 pt-3 border-t border-white/50 text-xs leading-snug">
+会話ではなく、agent の実行そのものを step 単位で復元する。
+</div>
 </div>
 
+</div>
+
+<div class="mt-4 border-l-4 border-black pl-4 text-sm leading-snug">
+<strong>障害例:</strong> 検索 ✓ → 資料作成 ✓ → メール送信中 ×<br>
+AI Workspace は「メールから再開」の判定・実装が必要。WorkflowAgent は完了済み2 stepを再利用し、メール step から再開する。
+</div>
+
+<div class="mt-2 text-[10px] opacity-80">
+どちらも外部 API の二重実行防止には idempotency key が必要。
 </div>
 
 <!--
@@ -745,40 +756,6 @@ export async function chat(messages: UIMessage[]) {
 - → ライブラリ・runtime・directive が **3 点セットで結合**
 
 </v-clicks>
-
----
-layout: default
----
-
-# 増殖の問題（zenn 記事より）
-
-[zenn.dev/tsuboi/articles/3f00d532bcb4dc](https://zenn.dev/tsuboi/articles/3f00d532bcb4dc) の主張:
-
-<v-clicks>
-
-> `'use strict'` は ES5 で標準化されたが、`'use client'` 以降は **バンドラが解釈する独自仕様**。  
-> 標準に見えて出所不明。
-
-</v-clicks>
-
-<v-click>
-
-Tanner Linsley (TanStack 作者) の評価:
-
-> これは **新しい形のフレームワークロックイン** だ
-
-</v-click>
-
-<v-click>
-
-歴史的類比 — **2015 年の TS/Babel デコレータ**:
-
-- 広く採用された
-- TC39 標準と非互換
-- 大規模な移行コスト
-- ディレクティブも同じ道を辿る可能性
-
-</v-click>
 
 ---
 layout: default
@@ -1554,7 +1531,6 @@ layout: default
 <div class="mm-folio mb-1 text-[10px]">Directives & Workflow</div>
 
 - [React Compiler Directives](https://react.dev/reference/react-compiler/directives)
-- [zenn: ディレクティブ問題](https://zenn.dev/tsuboi/articles/3f00d532bcb4dc)
 - [Workflow SDK (workflow-sdk.dev)](https://workflow-sdk.dev)
 - [vercel/workflow (GitHub)](https://github.com/vercel/workflow)
 - [Workflow SDK Worlds](https://workflow-sdk.dev/worlds)
