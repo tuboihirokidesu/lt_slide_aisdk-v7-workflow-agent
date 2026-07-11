@@ -100,18 +100,6 @@ layout: default
 </div>
 
 <div class="border-t-2 border-black pt-3">
-  <div class="mm-folio mb-1">06 · Chapter</div>
-  <div class="mm-italic text-xl">Roadmap</div>
-  <div class="text-sm opacity-70">何を採用すべきか</div>
-</div>
-
-<div class="border-t-2 border-black pt-3">
-  <div class="mm-folio mb-1">07 · Case Study</div>
-  <div class="mm-italic text-xl">Migration</div>
-  <div class="text-sm opacity-70">AI Workspace への適用</div>
-</div>
-
-<div class="border-t-2 border-black pt-3">
   <div class="mm-folio mb-1">— · Endmatter</div>
   <div class="mm-italic text-xl">Summary</div>
   <div class="text-sm opacity-70">結語と参考文献</div>
@@ -259,7 +247,7 @@ layout: default
 <li>必要な処理を選び、agent を新しく起動</li>
 </ol>
 <div class="mt-3 pt-3 border-t border-black text-xs leading-snug">
-会話は復元できる。ただし、実行位置は自動では戻らない。
+DB 保存だけでは「次の処理・再開位置・retry 回数」は管理されない。
 </div>
 </div>
 
@@ -302,46 +290,52 @@ HITL ゲート・部分応答・debug parts・S3 transcript を checkpoint し�
 layout: default
 ---
 
-# 「履歴保存」と「実行記録」は別物
+# World は AI の記憶ではない
+
+<div class="mt-2 text-sm leading-snug">
+runtime が読む <strong>Workflow 専用の実行基盤</strong>。アプリ DB とは役割が違う。
+</div>
 
 <div class="grid grid-cols-2 gap-x-6 mt-3">
 
 <div class="border-2 border-black p-5">
-<div class="mm-folio mb-1">AI Workspace</div>
-<div class="mm-italic text-xl mb-3">history / transcript</div>
+<div class="mm-folio mb-1">PRODUCT STATE</div>
+<div class="mm-italic text-xl mb-3">アプリ DB</div>
 <ul class="text-sm leading-snug">
-<li><code v-pre>chats</code>: user / assistant の本文</li>
-<li><code v-pre>chat_message_parts</code>: tool-use / tool-result / HITL / debug parts</li>
-<li>S3 SessionStore: Claude SDK transcript</li>
-<li>UI と model context の <strong>復元材料</strong></li>
+<li>チャット履歴・ユーザー・UI・業務データ</li>
+<li>AI Workspace は tool-use / result・HITL parts も保存</li>
+<li>UI と model context の復元に使う</li>
 </ul>
 <div class="mt-3 pt-3 border-t border-black text-xs">
-通常の ToolLoopAgent route は最終応答保存が中心。General Agent は上記 checkpoint まで実装。
+<strong>目的:</strong> 会話と画面を戻す
 </div>
 </div>
 
 <div class="mm-invert-panel border-2 border-black p-5">
-<div class="mm-folio mb-1 opacity-80">WorkflowAgent + World</div>
-<div class="mm-italic text-xl mb-3">execution ledger</div>
+<div class="mm-folio mb-1 opacity-80">EXECUTION STATE</div>
+<div class="mm-italic text-xl mb-3">World</div>
 <ul class="text-sm leading-snug">
-<li>model call は <strong>durable step</strong></li>
-<li>tool は <code v-pre>execute</code> が <code v-pre>'use step'</code> の場合に durable</li>
-<li>run / event / step の input・output・status・attempt を記録</li>
-<li>完了済み output を replay、未完了 step を queue で再試行</li>
+<li><strong>Event log</strong> — step の input / output / status / attempt / error</li>
+<li><strong>Queue</strong> — 未完了 step を配送・再試行</li>
+<li><strong>Compute</strong> — workflow / step を実行</li>
 </ul>
 <div class="mt-3 pt-3 border-t border-white/50 text-xs">
-保存先: Vercel managed cloud / Postgres tables / Local JSON
+<strong>目的:</strong> 正しい step から再開する
 </div>
 </div>
 
 </div>
 
 <div class="mt-4 border-l-4 border-black pl-4 text-sm leading-snug">
-<strong>Durable ≠ exactly-once.</strong> 外部 API の副作用は、安定した <code v-pre>stepId</code> を idempotency key に使う。
+障害 → runtime が event log を読む → 完了済み output を replay → 未完了 step を queue へ
+</div>
+
+<div class="mt-2 text-xs leading-snug">
+AI が「どこまで終わったか」を推測するのではない。<strong>runtime が機械的に判断する。</strong>
 </div>
 
 <div class="mt-2 text-[10px] opacity-80">
-Chat UI の履歴は引き続きアプリ DB へ。World は実行状態を保存する別レイヤー。
+World: Vercel managed / Postgres / Local ｜ Durable ≠ exactly-once — 外部 API には idempotency key が必要
 </div>
 
 <!--
@@ -528,7 +522,12 @@ layout: default
 
 # 実行フロー
 
-```mermaid {scale: 0.45}
+<div class="mt-2 mb-2 border-l-4 border-black pl-4 text-sm leading-snug">
+Browser の依頼 → Workflow を起動 → Agent が model / tool を反復 → 結果を stream で返す。<br>
+<strong>API Route は中継だけ。永続化と再開は Workflow runtime が担当する。</strong>
+</div>
+
+```mermaid {scale: 0.48}
 %%{init: {'theme':'base','themeVariables':{'background':'#FFFFFF','primaryColor':'#FFFFFF','primaryTextColor':'#000000','primaryBorderColor':'#000000','lineColor':'#000000','textColor':'#000000','actorBkg':'#FFFFFF','actorBorder':'#000000','actorTextColor':'#000000','actorLineColor':'#000000','signalColor':'#000000','signalTextColor':'#000000','labelBoxBkgColor':'#FFFFFF','labelBoxBorderColor':'#000000','labelTextColor':'#000000','loopTextColor':'#000000','noteBkgColor':'#F5F5F5','noteTextColor':'#000000','noteBorderColor':'#000000','activationBorderColor':'#000000','activationBkgColor':'#F5F5F5'}}}%%
 sequenceDiagram
   participant C as Browser
@@ -559,21 +558,17 @@ layout: default
 
 # 切れても再開する: WorkflowChatTransport
 
-```tsx {all|1-4|7-10|12-13|all}
+```tsx {all|1-3|6-10|12-13|all}
 'use client'
 import { useChat } from '@ai-sdk/react'
 import { WorkflowChatTransport } from '@ai-sdk/workflow'
-import { useMemo } from 'react'
 
 export default function Chat() {
-  const transport = useMemo(
-    () => new WorkflowChatTransport({
-      api: '/api/chat',
-      maxConsecutiveErrors: 5,
-      initialStartIndex: -50,
-    }),
-    [],
-  )
+  const transport = new WorkflowChatTransport({
+    api: '/api/chat',
+    maxConsecutiveErrors: 5,
+    initialStartIndex: -50,
+  })
 
   const { messages, sendMessage } = useChat({ transport })
   // ストリームが finish イベントなしで切れたら自動再接続して "続きから" 再開
@@ -1164,290 +1159,6 @@ layout: default
 </v-click>
 
 ---
-layout: section
----
-
-<div class="mm-folio opacity-70 mb-4">Chapter</div>
-
-# 06 — Roadmap
-
-<div class="mt-6 text-xl italic opacity-90 max-w-[40rem]">
-  いま何を採用すべきか
-</div>
-
----
-layout: default
----
-
-# 採用判断のフローチャート
-
-```mermaid {scale: 0.45}
-%%{init: {'theme':'base','themeVariables':{'background':'#FFFFFF','primaryColor':'#FFFFFF','primaryTextColor':'#000000','primaryBorderColor':'#000000','lineColor':'#000000','textColor':'#000000','mainBkg':'#FFFFFF','secondBkg':'#F5F5F5','clusterBkg':'#FFFFFF','clusterBorder':'#000000','edgeLabelBackground':'#FFFFFF','nodeBorder':'#000000'}}}%%
-flowchart LR
-  Start([新しい AI 機能]) --> Q1{長時間 /<br/>多段ツール?}
-  Q1 -- No --> A1[ToolLoopAgent]
-  Q1 -- Yes --> Q2{'use workflow'<br/>依存 OK?}
-  Q2 -- No --> A2[ToolLoopAgent +<br/>自前ジョブキュー]
-  Q2 -- Yes --> Q3{Human-in-<br/>the-loop?}
-  Q3 -- No --> A3[WorkflowAgent]
-  Q3 -- Yes --> A4[WorkflowAgent +<br/>ChatTransport]
-
-  style A1 fill:#000,stroke:#000,color:#fff
-  style A3 fill:#000,stroke:#000,color:#fff
-  style A4 fill:#000,stroke:#000,color:#fff
-```
-
-<v-click>
-
-開発フローのベストプラクティス:  
-**まず ToolLoopAgent で書く → durable 化が必要になったら WorkflowAgent に切替**
-
-</v-click>
-
----
-layout: default
----
-
-# 移行のコツ — v6 → v7 で最初にやるべき6つ
-
-<v-clicks>
-
-1. **Node.js 22+ / ESM 化** — CJS `require()` は廃止、ESM `import` へ（package 設定は runtime に合わせる）
-2. **`system` → `instructions`** — `messages` 内の `{ role: 'system' }` はデフォルト拒否
-3. **lifecycle rename** — `onFinish` → `onEnd`、`onStepFinish` → `onStepEnd`
-4. **context 分割** — `experimental_context` → `runtimeContext` / `toolsContext`
-5. **承認 API を分ける** — 通常は `toolApproval`、WorkflowAgent は `tool({ needsApproval })`
-6. **Telemetry の登録** — `@ai-sdk/otel` を入れて `registerTelemetry()` を一回呼ぶ
-
-</v-clicks>
-
-<v-click>
-
-まず `npx @ai-sdk/codemod v7` をかける。`image-*` 系は runtime auto-migration ありだが、最終的には canonical `file` part へ寄せる
-
-</v-click>
-
----
-layout: section
----
-
-<div class="mm-folio opacity-70 mb-4">Case Study</div>
-
-# 07 — Migration
-
-<div class="mt-6 text-xl italic opacity-90 max-w-[44rem]">
-  AI Workspace の <code style="background:rgba(255,255,255,0.12);padding:0 0.4em">route.ts</code> を WorkflowAgent に置き換える
-</div>
-
----
-layout: default
----
-
-# 想定: いまの ToolLoopAgent ベース
-
-<div class="mm-folio mt-1 mb-2">Before · 1 リクエスト = 1 関数実行</div>
-
-```text
-Browser ─POST─▶ /api/chat/.../agent
-                ├─ MCP / skill / memory 並列ロード
-                ├─ buildAgent → agent.stream({ totalMs: 540s })
-                │   ├─ onStepFinish: HMAC 署名 / RAG ref / skill log
-                │   ├─ prepareStep:  reasoning signature 修復
-                │   └─ onFinish:    DynamoDB upsert / AgentCore Memory / title
-                ├─ try/catch: input-too-long / docsize → retry-without-files で agent 再生成
-                └─ pipeJsonRender → toUIMessageStream → writer 直書き
-
-HITL のとき:
-Browser ◀─署名つき approval prompt─ writer
-Browser ─POST── approvalContinuation { messages 全部 }
-        ▶ parseApprovalContinuation → HMAC 検証 → resolveApprovalContinuationMessages
-        → 上の流れを最初から再構築（system prompt 再生成・MCP 再接続・履歴再ロード）
-```
-
----
-layout: default
----
-
-# After: WorkflowAgent + 'use workflow'
-
-<div class="mm-folio mt-1 mb-2">After · durable steps + messages-based approval continuation</div>
-
-```text
-Browser ─POST─▶ /api/chat/.../agent  ← 薄くなる（start(chat) して stream 配管）
-                  │
-                  ▼
-           workflow run A
-           ├─ step: loadHistory / buildSystemPrompt ← serializable data だけ返す
-           ├─ WorkflowAgent.stream({ writable })
-           │   ├─ step: model call
-           │   ├─ step: static tool A ('use step') ← この step を retry
-           │   └─ destructive tool → approval request を出力し loop を pause
-           └─ Browser ◀─ 「承認待ち」
-
-Browser: addToolApprovalResponse(...)
-         └─ updated messages を /agent へ自動 POST
-                    └─ workflow run B で承認を再検証し継続
-                        └─ step: persistAssistant ← 冪等に保存
-                  │
-                  ▼
-        run.readable ─▶ createModelCallToUIChunkTransform ─▶ Browser
-        ※ WorkflowChatTransport の同一 run 再接続は「stream 切断」用
-```
-
----
-layout: default
----
-
-# 既知のペインポイントはどう変わるか
-
-<div class="text-[11px] leading-tight">
-
-| いまの制約 (`route.ts` のコメント) | WorkflowAgent 化での扱い |
-|---|---|
-| Bedrock Claude p99 5 分超で 540s に張り付き | **改善余地** — 複数 step の合計時間は分割できるが、単一 model-call step の制限は残る |
-| timeout 発動時 `onFinish` バイパスで部分応答が保存されない | **要再設計** — chunk は durable だが、失敗時に最終保存 step が成功する保証はない |
-| `onAbort` / `reader.cancel()` 後の保存 | **別論点** — durability と cancellation を分け、保存は冪等 step に集約 |
-| MCP クライアント `try/finally` cleanup（リーク防止） | **未解決** — live client は context 共有できない。step 内再接続または固定 wrapper が必要 |
-| `retry-without-files` の二重 `buildAgent` | **簡素化可能** — fallback 分岐は残るが、workflow 上で明示的に構造化できる |
-| HITL: `parseApprovalContinuation` / `sanitizeApprovalMessages` 200 行超 | **縮小可能** — AI SDK 標準の approval message protocol に寄せられる範囲で削除 |
-| `experimental_telemetry` で Langfuse | **移行容易** — `telemetry` へリネーム。workflow run と外部 trace の相関は別途設計 |
-
-</div>
-
----
-layout: default
----
-
-# 具体的なメリット
-
-<div class="grid grid-cols-3 gap-x-8 mt-4">
-
-<div>
-<div class="mm-folio mb-1">A · UX</div>
-<div class="mm-italic text-xl mb-2">ユーザー体感</div>
-
-- **一時的な stream 切断から復旧** — `WorkflowChatTransport` が同 run の chunk 位置から再接続
-- **ページ再読込みも設計可能** — runId / chat state を保存し、reconnect endpoint へ戻す
-- **承認 UI を標準 protocol 化** — `addToolApprovalResponse` で履歴を保ったまま継続
-
-</div>
-
-<div>
-<div class="mm-folio mb-1">B · Ops</div>
-<div class="mm-italic text-xl mb-2">運用・デバッグ</div>
-
-- **詰まった kintone ツールが見える** — <code v-pre>'use step'</code> で固定 wrapper した tool は step 単位 timeline
-- **MCP 一時障害に対策を選べる** — MCP `maxRetries` または durable step wrapper。動的 tool は要検証
-- **input-too-long 等のフォールバックが宣言的** — `try/catch` ネスト → 「失敗したら次の step」
-
-</div>
-
-<div>
-<div class="mm-folio mb-1">C · Code</div>
-<div class="mm-italic text-xl mb-2">コード量</div>
-
-- **独自 HITL parser を減らせる** — 標準 approval part と `useChat` に寄せた範囲で縮小
-- **agent 構築と workflow orchestration を分離** — 固定 tool 定義と serializable context の境界が明確
-- **保存処理を集約** — 冪等な最終 step に寄せ、retry での二重実行を防ぐ
-
-</div>
-
-</div>
-
----
-layout: default
----
-
-# 移行後コード骨子
-
-```ts {all|1-4|7-10|12-17|19-23|all}
-// module scope: execute は 'use step' 付き
-const workflowTools = {
-  search: tool({ inputSchema: searchSchema, execute: searchStep }),
-  write: tool({ inputSchema: writeSchema, execute: writeStep, needsApproval: true }),
-}
-
-export async function agentChat(input: AgentChatInput) {
-  'use workflow'
-  const messages = await loadMessagesStep(input.historyId)
-
-  const agent = new WorkflowAgent({
-    model: input.modelId,
-    instructions: await buildPromptStep(input),
-    tools: workflowTools,                // step から返さない
-    toolsContext: { search: { tenantId: input.tenantId } },
-  })
-
-  const result = await agent.stream({
-    messages, writable: getWritable<ModelCallStreamPart>(),
-  })
-  await persistAssistantStep({ turnId: input.turnId, messages: result.messages })
-  return result
-}
-```
-
----
-layout: default
----
-
-# 呼び出し側と承認継続
-
-```ts {all|3-4|6}
-// frontend/app/api/chat/histories/[historyId]/agent/route.ts
-export async function POST(req: Request) {
-  const input = await parseInput(req)
-  const run = await start(agentChat, [input])
-  return createUIMessageStreamResponse({
-    stream: run.readable.pipeThrough(createModelCallToUIChunkTransform()),
-    headers: { 'x-workflow-run-id': run.runId },
-  })
-}
-```
-
-```tsx {all|2-5|7-11}
-const { addToolApprovalResponse } = useChat({
-  transport, // useMemo で作った WorkflowChatTransport
-  sendAutomaticallyWhen:
-    lastAssistantMessageIsCompleteWithApprovalResponses,
-})
-
-// approval-requested の UI から呼ぶ
-addToolApprovalResponse({
-  id: part.approval.id,
-  approved: true,
-})
-```
-
-<div class="mt-2 text-[11px] opacity-75 border-t-2 border-black pt-2">
-  approval は <strong>messages を同じ POST endpoint へ再送</strong>。stream 切断は <strong>GET /{runId}/stream</strong> で同一 run に reconnect。
-</div>
-
----
-layout: default
----
-
-# 残課題（stable 後でも検証が要る点）
-
-<v-clicks>
-
-- **`smoothStream` 互換** — `ModelCallStreamPart` ストリームへの transform を入れる位置が変わる
-- **`pipeJsonRender`（独自 JSONL 抽出）と `createModelCallToUIChunkTransform` の合流ポイント**設計
-- **AgentCore Memory への `sendConversationEvents`** を最終 step に置くか、別 workflow に切り出すか
-- **DynamoDB upsert の冪等性** — step retry が走る場合に備えて `id` を固定化
-- **`wrapToolsWithStages` の `data-search-stage` / `data-reference-data`** を `ModelCallStreamPart` 経由でどう乗せるか
-
-</v-clicks>
-
-<v-click>
-
-<div class="mt-6 mm-folio">Summary</div>
-
-> いまのコードに散在する **「ToolLoopAgent の制約に対応するための気合いコード」** が、  
-> WorkflowAgent の永続性を前提にすると **体系的に縮退する**
-
-</v-click>
-
----
 layout: default
 ---
 
@@ -1483,18 +1194,6 @@ layout: default
 
 <div>
 <div class="mm-folio mb-1">05</div>
-<div class="mm-italic text-xl">Strategy</div>
-<div class="text-sm">ToolLoopAgent で開発 → 必要なら WorkflowAgent + 検証済み World</div>
-</div>
-
-<div>
-<div class="mm-folio mb-1">06</div>
-<div class="mm-italic text-xl">Migration</div>
-<div class="text-sm">HITL / 保存 / retry を責務ごとに再配置。動的 MCP は引き続き要検証</div>
-</div>
-
-<div>
-<div class="mm-folio mb-1">07</div>
 <div class="mm-italic text-xl">Discipline</div>
 <div class="text-sm">LLM の「最新動向」要約は必ず一次情報で裏取りする — 自分の主張も含めて</div>
 </div>
