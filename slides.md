@@ -205,7 +205,7 @@ abort / disconnect / error 時の部分 assistant 保存、Claude SDK transcript
 layout: default
 ---
 
-# 例: 「航空券 + ホテル + 人間承認」エージェント
+# ToolLoopAgent は承認後、「続き」を自前で復元する
 
 <div class="mm-folio mt-1 mb-2">Scenario · 来週東京3泊、予算15万円</div>
 
@@ -224,21 +224,23 @@ sequenceDiagram
   A->>H: ホテル検索
   H-->>A: 候補 M 件
   A->>U: 「このプランでどうですか？」
-  Note over U,A: 承認待ち（数分〜数十分）
+  Note over U,A: 承認 request を返し、loop はここで終了
   U->>A: 「OK、予約して」
   A->>B: 予約実行
   Note over A,B: ここで失敗したら…？
 ```
 
 <div class="mt-1 border-l-4 border-black pl-3 text-[13px] leading-snug">
-<strong>1時間待つだけで、Agent が「何のことだっけ？」となるわけではない。</strong><br>
-ToolLoopAgent は過去の messages が揃えば<strong>新しい request</strong>で続行する。欠けていれば文脈を復元できない。WorkflowAgent は待機状態を保存して suspend し、<strong>同じ run</strong>を resume する。Serverless は根本原因ではないが、実行時間制限により違いが表面化しやすい。
+<strong>ToolLoopAgent の弱点:</strong> 「OK」の後は、保存した messages を使って<strong>新しい loop</strong>を起動する。検索結果や tool state を復元できなければ、フライト・ホテル検索からやり直す。<br>
+<strong>WorkflowAgent:</strong> 2つの検索 step を完了済みとして保存し、<strong>同じ run を予約 step から再開</strong>する。
 </div>
 
 <!--
-承認待ちの間、LLM や Node.js process が記憶を保持し続けるわけではない。
-ToolLoopAgent は tool call / result / approval request を含む messages と承認回答を使った次の request として継続する。
-WorkflowAgent は durable workflow の待機状態を記録し、承認後に同じ workflow run を再開する。
+ToolLoopAgent の tool approval は、approval request を messages として返したところでその agent loop を終える。
+承認後は tool call / result / approval request を含む messages に承認回答を追加し、別 request で ToolLoopAgent を実行する。
+そのため messages / tool result の保存・復元・再開判定はアプリの責務になる。
+
+WorkflowAgent は tool call を durable step として保存し、承認後に同じ workflow run を再開する。
 
 Source:
 https://vercel.com/kb/guide/what-is-workflowagent
@@ -412,8 +414,9 @@ step の記録・queue・compute をまとめ、runtime が障害後の続きを
 AI が「どこまで終わったか」を推測するのではない。<strong>runtime が機械的に判断する。</strong>
 </div>
 
-<div class="mt-2 text-[10px] opacity-80">
-World: Vercel managed / Postgres / Local ｜ Durable ≠ exactly-once — 外部 API には idempotency key が必要
+<div class="mt-2 text-[10px] leading-snug opacity-80">
+World は runtime・queue・永続化を差し替える backend 抽象化 — <a href="https://workflow-sdk.dev/worlds" target="_blank">Worlds 公式 ↗</a> / <a href="https://workflow-sdk.dev/worlds/postgres" target="_blank">Postgres World ↗</a><br>
+Durable ≠ exactly-once — 外部 API には idempotency key が必要
 </div>
 
 <!--
@@ -448,36 +451,46 @@ Workflow SDK は getStepMetadata().stepId を外部 API の idempotency key に�
 layout: default
 ---
 
-# コードで見る差分
+# 承認後の再開方法が違う
 
 ```ts {all|2-3|5-6}
-// AI SDK 6 — ToolLoopAgent: 承認は messages 継続
+// ToolLoopAgent: 承認は messages 継続
 const agent = new ToolLoopAgent({
   tools: { searchFlights, searchHotels, bookFlight, bookHotel },
 })
 const first = await agent.generate({ prompt: '来週東京3泊、予算15万' })
-// approval request を返して終了。継続には messages の保存・再送が必要
+// 承認結果を含む messages で新しい loop を開始
 ```
 
-```ts {all|2|5|7-12|14}
-// AI SDK 7 — WorkflowAgent: durable step + approval 継続
+```ts {all|2|6|8-10|12}
+// WorkflowAgent: 同じ workflow run を継続
 async function bookFlightStep(input) {
   'use step'
   return bookFlight(input)
 }
-
 export async function chat(messages) {
   'use workflow'
   const agent = new WorkflowAgent({
-    model: 'anthropic/claude-sonnet-4-6',
-    tools: {
-      bookFlight: tool({ execute: bookFlightStep, needsApproval: true }),
-    },
+    tools: { bookFlight: tool({
+      execute: bookFlightStep, needsApproval: true,
+    }) },
   })
   await agent.stream({ messages, writable: getWritable() })
 }
-// 承認応答は messages に追加して再 POST。'use step' tool は retry 可能
+// 承認待ちで workflow を suspend。応答後は同じ run を resume
 ```
+
+<div class="mt-1 border-l-4 border-black pl-3 text-[11px] leading-snug">
+<strong>DB が不要になるわけではない:</strong> 同じ run の再開は World。新しいユーザー発話の <code>messages</code> 取得とチャット画面の復元はアプリ DB。
+</div>
+
+<!--
+WorkflowAgent の needsApproval は approval request を writable へ出した後、workflow 自体を suspend する。
+承認後は同じ workflow run を resume するため、その再開のために全 messages を DB から再取得して新しい agent loop を起動する必要はない。
+
+ただし agent.stream() の開始時には ModelMessage[] が必要。
+新しいユーザー発話で別の run を始める場合や、過去の会話を画面に復元する場合は、アプリ DB のチャット履歴を引き続き使う。
+-->
 
 ---
 layout: default
@@ -505,23 +518,6 @@ durability の比較は前ページ。ここでは導入時の API 差分に限�
 前の比較スライドは「障害時にどう再開するか」を説明する。
 このスライドは「導入するとコードと API がどう変わるか」に限定し、役割を分ける。
 -->
-
----
-layout: default
----
-
-# 解決したい4つの問題
-
-公式ドキュメント [ai-sdk.dev/v7/docs/agents/workflow-agent](https://ai-sdk.dev/v7/docs/agents/workflow-agent) より
-
-<v-clicks>
-
-1. **Statefulness** — プロセス境界を跨いで状態を保持
-2. **Resumability** — 失敗したステップから再開（最初からやり直さない）
-3. **Human-in-the-loop** — 承認待ちで一時停止し、後で再開
-4. **Observability** — 各ツール呼び出しが独立したワークフローステップとして可視化
-
-</v-clicks>
 
 ---
 layout: section
