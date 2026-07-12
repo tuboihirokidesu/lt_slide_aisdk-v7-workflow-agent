@@ -158,7 +158,7 @@ layout: section
 layout: default
 ---
 
-# ToolLoopAgent の限界 — 「消える」のは何か
+# ToolLoopAgent は実行途中から自動再開できない
 
 `ToolLoopAgent` の **実行中 loop** はインメモリ。DB に保存したチャット履歴まで消えるわけではない
 
@@ -230,13 +230,91 @@ sequenceDiagram
   Note over A,B: ここで失敗したら…？
 ```
 
+<div class="mt-1 border-l-4 border-black pl-3 text-[13px] leading-snug">
+<strong>1時間待つだけで、Agent が「何のことだっけ？」となるわけではない。</strong><br>
+ToolLoopAgent は過去の messages が揃えば<strong>新しい request</strong>で続行する。欠けていれば文脈を復元できない。WorkflowAgent は待機状態を保存して suspend し、<strong>同じ run</strong>を resume する。Serverless は根本原因ではないが、実行時間制限により違いが表面化しやすい。
+</div>
+
+<!--
+承認待ちの間、LLM や Node.js process が記憶を保持し続けるわけではない。
+ToolLoopAgent は tool call / result / approval request を含む messages と承認回答を使った次の request として継続する。
+WorkflowAgent は durable workflow の待機状態を記録し、承認後に同じ workflow run を再開する。
+
+Source:
+https://vercel.com/kb/guide/what-is-workflowagent
+-->
+
 ---
 layout: default
 ---
 
-# 違いは「障害後の再開」を誰が判断するか
+# そこで WorkflowAgent が登場した
 
-<div class="grid grid-cols-2 gap-x-6 mt-4">
+<div class="mm-folio mt-1 mb-3">AI SDK 7 · Durable agent loop</div>
+
+<div class="grid grid-cols-[1.12fr_0.88fr] gap-x-9 mt-4">
+
+<div>
+<div class="mm-italic text-3xl leading-tight mb-4">ToolLoopAgent の書き味 × Workflow runtime</div>
+
+<div class="text-base leading-relaxed">
+<code v-pre>@ai-sdk/workflow</code> が、同じ agent loop を durable workflow 上で実行する <code v-pre>WorkflowAgent</code> を提供する。
+</div>
+
+<ul class="mt-4 text-sm leading-relaxed">
+<li>tool 実行を <strong>workflow step</strong> として記録</li>
+<li>完了済み output を再利用し、未完了 step を retry</li>
+<li>承認待ちを suspend し、数時間後でも同じ run を resume</li>
+</ul>
+</div>
+
+<div class="border-l-2 border-black pl-6">
+<div class="mm-folio mb-2">Core implementation</div>
+<div class="mm-italic text-4xl mb-1"><a href="https://github.com/vercel/ai/pull/12165">PR #12165</a></div>
+<div class="text-base font-bold leading-snug">🆕 WorkflowAgent<br><span class="font-mono text-sm">(@ai-sdk/workflow)</span></div>
+
+<div class="mt-3 text-xs leading-relaxed">
+2026-01-30 opened<br>
+2026-04-13 merged into <code v-pre>main</code>
+</div>
+
+<div class="mt-4 pt-3 border-t border-black text-xs leading-relaxed">
+feature branch で<br>
+<a href="https://github.com/vercel/ai/pull/14030">#14030</a> DurableAgent → WorkflowAgent<br>
+<a href="https://github.com/vercel/ai/pull/14084">#14084</a> <code v-pre>needsApproval</code> 対応
+</div>
+</div>
+
+</div>
+
+<div class="mt-5 mm-invert-panel border-2 border-black px-5 py-3 text-sm leading-snug">
+<strong>AI に長期記憶を与える機能ではない。</strong> runtime が agent の実行状態を step 単位で追跡し、確実に再開する仕組み。
+</div>
+
+<!--
+PR #12165 は新しい @ai-sdk/workflow package を追加し、WorkflowAgent を export した中核実装。
+DurableAgent の後継として設計され、最終的に 154 files / +17,788 / -1,287 の変更として main に merge された。
+
+#14030 と #14084 は base が gr2m/durable-agent であり、#12165 の feature branch に merge された supporting PR。
+
+Sources:
+https://github.com/vercel/ai/pull/12165
+https://github.com/vercel/ai/pull/14030
+https://github.com/vercel/ai/pull/14084
+https://vercel.com/kb/guide/what-is-workflowagent
+-->
+
+---
+layout: default
+---
+
+# ToolLoopAgent vs WorkflowAgent
+
+<div class="mm-slide-lead">
+障害時の再開フローを比較する
+</div>
+
+<div class="grid grid-cols-2 gap-x-6 mt-3">
 
 <div class="border-2 border-black p-5">
 <div class="mm-folio mb-1">AI Workspace · ToolLoopAgent</div>
@@ -290,17 +368,17 @@ HITL ゲート・部分応答・debug parts・S3 transcript を checkpoint し�
 layout: default
 ---
 
-# World は AI の記憶ではない
+# World は正しい step から再開するための実行基盤
 
 <div class="mt-2 text-sm leading-snug">
-runtime が読む <strong>Workflow 専用の実行基盤</strong>。アプリ DB とは役割が違う。
+step の記録・queue・compute をまとめ、runtime が障害後の続きを決める。
 </div>
 
 <div class="grid grid-cols-2 gap-x-6 mt-3">
 
 <div class="border-2 border-black p-5">
 <div class="mm-folio mb-1">PRODUCT STATE</div>
-<div class="mm-italic text-xl mb-3">アプリ DB</div>
+<div class="mm-italic text-xl mb-3">アプリ DB — 会話を戻す</div>
 <ul class="text-sm leading-snug">
 <li>チャット履歴・ユーザー・UI・業務データ</li>
 <li>AI Workspace は tool-use / result・HITL parts も保存</li>
@@ -313,7 +391,7 @@ runtime が読む <strong>Workflow 専用の実行基盤</strong>。アプリ DB
 
 <div class="mm-invert-panel border-2 border-black p-5">
 <div class="mm-folio mb-1 opacity-80">EXECUTION STATE</div>
-<div class="mm-italic text-xl mb-3">World</div>
+<div class="mm-italic text-xl mb-3">World — 処理を戻す</div>
 <ul class="text-sm leading-snug">
 <li><strong>Event log</strong> — step の input / output / status / attempt / error</li>
 <li><strong>Queue</strong> — 未完了 step を配送・再試行</li>
@@ -405,29 +483,27 @@ export async function chat(messages) {
 layout: default
 ---
 
-# WorkflowAgent の位置づけ
+# WorkflowAgent 導入で変わるコードと API
 
 <div class="mm-slide-lead">
-<code v-pre>@ai-sdk/workflow</code> パッケージで提供される <strong>durable</strong> 版エージェント
+<code v-pre>@ai-sdk/workflow</code> と Workflow runtime を追加し、実行境界を明示する
 </div>
 
 | 観点 | ToolLoopAgent (`ai`) | WorkflowAgent (`@ai-sdk/workflow`) |
 |---|---|---|
-| ランタイム | loop はインメモリ<br>履歴保存はアプリ側 | Workflow runtime（World が queue / 永続化を担当） |
-| 耐障害性 | 実行中 loop はインメモリ | **workflow step は再起動を跨いで生存** |
-| ツール再試行 | アプリ側で設計 | **`'use step'` tool は自動** |
-| Human-in-the-loop | messages で継続 | messages で継続 + **durable step** |
-| `generate()` | あり | **未実装**（`throw new Error`） |
-| `stream()` | あり | プライマリ API |
+| 実行開始 | request 内で直接実行 | <code v-pre>'use workflow'</code> 関数を <code v-pre>start()</code> |
+| tool 実行 | 通常の `execute` | <code v-pre>'use step'</code> 関数を `execute` に指定 |
+| 承認設定 | `toolApproval` | tool の `needsApproval` |
+| Agent API | `generate()` / `stream()` | `stream()` がプライマリ |
 | 出力 | streamText の戻り値 | `writable` パラメタに `ModelCallStreamPart` |
 
 <div class="mt-2 text-[10px] opacity-80">
-World = Workflow DevKit の実行バックエンド。公式は Local（開発）/ Vercel（managed）/ Postgres（self-host）。
+durability の比較は前ページ。ここでは導入時の API 差分に限定。
 </div>
 
 <!--
-"durable" を翻訳すれば「永続的・耐久性のある」。
-要するに ToolLoopAgent と同じループを、各ツール呼び出しが workflow ステップになる形で実行する。
+前の比較スライドは「障害時にどう再開するか」を説明する。
+このスライドは「導入するとコードと API がどう変わるか」に限定し、役割を分ける。
 -->
 
 ---
@@ -589,51 +665,44 @@ export default function Chat() {
 layout: default
 ---
 
-# AI SDK 7 stable release highlights
+# AI SDK 7 の最新動向 — stable 後は運用品質を強化
 
-2026-06-25 の公式 blog で **AI SDK 7 stable** として発表
+<div class="mm-folio mt-1 mb-3">2026-07-12 確認 · ai@7.0.22 / @ai-sdk/workflow@1.0.22</div>
 
-<v-clicks>
+<div class="grid grid-cols-[0.82fr_1.18fr] gap-x-8 mt-4">
 
-- **Develop** — `reasoning`、typed tool / runtime context、provider file / skill uploads、MCP Apps、TUI
-- **Run** — tool approvals、`WorkflowAgent`、timeouts、sandbox support
-- **Integrate** — Codex / Claude Code / Deep Agents / OpenCode / Pi など任意の agent harness
-- **Observe** — telemetry、Node.js tracing channel、lifecycle events、performance statistics
-- **Beyond text** — provider-agnostic realtime voice、experimental video generation
+<div class="border-r-2 border-black pr-7">
+<div class="mm-folio mb-2">2026-06-25 · STABLE</div>
+<div class="mm-italic text-2xl mb-4">production agent stack へ</div>
 
-</v-clicks>
-
-<v-click>
-
-WorkflowAgent は「Run agents」の中核。beta 時代の細かい差分より、  
-**production agent stack の一部として stable 化した**ことが今回の大きな変化
-
-</v-click>
-
----
-layout: default
----
-
-# Stable 後の更新 — 7.0.22
-
-<div class="mm-folio mt-1 mb-3">2026-07-11 確認 · ai@7.0.22 / @ai-sdk/workflow@1.0.22</div>
-
-<v-clicks>
-
-- **Resumable stream の hardening** — orphan chunk 修復、step payload 削減、`finishReason` / `totalUsage` 追加
-- **MCP security** — `fingerprintTools` / `detectToolDrift` で tool definition の rug pull を検知
-- **Approval security** — 署名 metadata 保持、prototype-property collision 対策
-- **API の安定化** — `repairToolCall` が stable、MCP tool call に `maxRetries`
-- **Beyond text の拡張** — streaming transcription、video reference input、Cartesia provider
-
-</v-clicks>
-
-<div class="mt-5 border-t-2 border-black pt-3 text-base">
-stable 後の主戦場は、<strong>新しい agent API の追加だけでなく、再接続・承認・MCP の安全性と運用性</strong>。
+<ul class="text-[13px] leading-snug">
+<li><strong>Run</strong> — WorkflowAgent / approvals / timeout / sandbox</li>
+<li><strong>Develop</strong> — reasoning / typed context / files & skills</li>
+<li><strong>Observe</strong> — telemetry / tracing / lifecycle</li>
+<li><strong>Beyond text</strong> — realtime voice / video</li>
+</ul>
 </div>
 
-<div class="mt-2 text-xs opacity-70">
-Source: <a href="https://github.com/vercel/ai/blob/main/packages/ai/CHANGELOG.md">ai CHANGELOG</a> / <a href="https://github.com/vercel/ai/blob/main/packages/workflow/CHANGELOG.md">@ai-sdk/workflow CHANGELOG</a>
+<div>
+<div class="mm-folio mb-2">LATEST PATCHES · 7.0.1 → 7.0.22</div>
+<div class="mm-italic text-2xl mb-4">再接続・安全性・安定性を改善</div>
+
+<ul class="text-[13px] leading-snug">
+<li><strong>Workflow</strong> — reconnect 修復 / step payload 削減 / finish & usage</li>
+<li><strong>Security</strong> — MCP tool drift 検知 / approval hardening</li>
+<li><strong>API</strong> — <code v-pre>repairToolCall</code> stable / MCP <code v-pre>maxRetries</code></li>
+<li><strong>Multimodal</strong> — transcription / video reference / Cartesia</li>
+</ul>
+</div>
+
+</div>
+
+<div class="mt-3 mm-invert-panel border-2 border-black px-4 py-2 text-[13px] leading-snug">
+stable 化で機能を揃え、その後は <strong>production で壊れにくく、安全に運用できる agent</strong> へ磨き込んでいる。
+</div>
+
+<div class="mt-1 text-[9px] opacity-70">
+Sources: <a href="https://vercel.com/blog/ai-sdk-7">AI SDK 7 Blog</a> / <a href="https://github.com/vercel/ai/blob/main/packages/ai/CHANGELOG.md">ai CHANGELOG</a> / <a href="https://github.com/vercel/ai/blob/main/packages/workflow/CHANGELOG.md">workflow CHANGELOG</a>
 </div>
 
 ---
@@ -809,87 +878,6 @@ layout: default
 </v-click>
 
 ---
-layout: default
----
-
-<div class="mm-folio mb-2">Recommendation · AI Workspace</div>
-
-# 全部は変えない。必要な Agent だけ durable にする
-
-<div class="mt-2 text-lg leading-snug">
-結論は <strong>WorkflowAgent の部分導入</strong>。全面置換ではない。
-</div>
-
-<div class="grid grid-cols-[1.35fr_0.9fr] gap-x-8 mt-5">
-
-<div>
-<div class="mm-folio mb-2">導入する順番</div>
-
-<div class="border-t-2 border-black py-3 grid grid-cols-[2.3rem_1fr] gap-x-3">
-<div class="mm-italic text-3xl">1</div>
-<div>
-<div class="text-base font-bold">RAG / Knowledge で障害テスト</div>
-<div class="text-sm">読み取り中心の Agent で、完了済み検索を再利用できるか検証</div>
-</div>
-</div>
-
-<div class="border-t border-black py-3 grid grid-cols-[2.3rem_1fr] gap-x-3">
-<div class="mm-italic text-3xl">2</div>
-<div>
-<div class="text-base font-bold">書き込み tool に冪等性を入れる</div>
-<div class="text-sm">WorkflowAgent でも外部 API の exactly-once は保証されない</div>
-</div>
-</div>
-
-<div class="border-y border-black py-3 grid grid-cols-[2.3rem_1fr] gap-x-3">
-<div class="mm-italic text-3xl">3</div>
-<div>
-<div class="text-base font-bold">Holiday / User Admin へ広げる</div>
-<div class="text-sm">長時間・複数 tool・承認ありほど durable 化の効果が大きい</div>
-</div>
-</div>
-</div>
-
-<div class="border-l-2 border-black pl-5">
-<div class="mm-folio mb-3">変えない範囲</div>
-<div class="mm-italic text-xl mb-1">短い Q&amp;A</div>
-<div class="text-sm mb-5">失敗時に最初からやり直せる処理は ToolLoopAgent のまま</div>
-
-<div class="mm-italic text-xl mb-1">General / MI Agent</div>
-<div class="text-sm">Claude Agent SDK + AgentCore の別基盤。置換ではなく再設計になる</div>
-</div>
-
-</div>
-
-<div class="mt-5 mm-invert-panel border-2 border-black px-5 py-3 text-sm leading-snug">
-<strong>最初の判断ゲート:</strong> Vercel World は現在 <code v-pre>iad1</code>。社内データの保存先要件を確認し、不可なら AWS 東京の Postgres / custom World を検討する。
-</div>
-
-<!--
-通常 Agent route は maxDuration=800s、agent.stream は totalMs=740s。
-timeout では onEnd がバイパスされ、部分応答は保存されないと実装コメントにも明記されている。
-この「1 request 内で loop 全体を完走させる」制約は WorkflowAgent と相性がよい改善対象。
-
-ただし dynamic MCP client、DB client、SDK client は workflow 境界を越えて保持できない。
-識別子・設定だけを serializable context として渡し、各 step 内で再接続する。
-
-書き込み tool は、外部 API 成功後・step 完了記録前に落ちると retry され得る。
-runId / stepId / toolCallId などから安定した idempotency key を作る。
-
-General / MI Agent は通常 route を通らず、ブラウザから AgentCore Runtime を直接 invoke する。
-HITL queue と reconnect の耐障害化は重要だが、WorkflowAgent 置換とは別トラックで扱う。
-
-検証では「検索完了直後に process kill → 検索を再実行せず次 step から再開」を合格条件にする。
-
-Sources:
-https://vercel.com/kb/guide/what-is-workflowagent
-https://workflow-sdk.dev/worlds/vercel
-https://workflow-sdk.dev/worlds/postgres
-https://github.com/mhigroup/A0005-AI-Workspace/blob/develop/frontend/app/api/chat/histories/%5BhistoryId%5D/agent/route.ts
-https://github.com/mhigroup/A0005-AI-Workspace/blob/develop/frontend/app/api/chat/histories/%5BhistoryId%5D/agent/agentRegistry.ts
--->
-
----
 layout: section
 ---
 
@@ -941,102 +929,6 @@ const research = tool({
 ```
 
 </v-click>
-
----
-layout: default
----
-
-<div class="mm-folio mb-2">Subagents · AI Workspace</div>
-
-# まずは「最初の質問」で Agent を自動選択する
-
-<div class="mt-2 text-lg leading-snug">
-既存 Agent を作り直さず、<strong>1 chat = 1 Agent</strong> のまま選択 UI を省略できる。
-</div>
-
-<div class="grid grid-cols-[1fr_auto_1fr_auto_1fr_auto_1fr] items-center gap-x-3 mt-7">
-
-<div class="border-t-2 border-black pt-3">
-<div class="mm-folio mb-1">Input</div>
-<div class="mm-italic text-xl">最初の質問</div>
-</div>
-
-<div class="mm-italic text-3xl">→</div>
-
-<div class="border-t-2 border-black pt-3">
-<div class="mm-folio mb-1">Guard</div>
-<div class="mm-italic text-xl">権限で候補を絞る</div>
-</div>
-
-<div class="mm-italic text-3xl">→</div>
-
-<div class="border-t-2 border-black pt-3">
-<div class="mm-folio mb-1">Route</div>
-<div class="mm-italic text-xl">LLM が agentId を選ぶ</div>
-</div>
-
-<div class="mm-italic text-3xl">→</div>
-
-<div class="border-t-2 border-black pt-3">
-<div class="mm-folio mb-1">Persist</div>
-<div class="mm-italic text-xl">selected_agent に保存</div>
-</div>
-
-</div>
-
-<div class="grid grid-cols-2 gap-x-10 mt-8 text-sm leading-snug">
-
-<div class="border-t border-black pt-3">
-<div class="mm-folio mb-2">今すぐ実現しやすい</div>
-<ul>
-<li>通常 Agent は共通 Route + Registry に集約済み</li>
-<li>DynamoDB に説明・enabled・必要権限がある</li>
-<li>選択後は既存の tool / HITL / UI をそのまま使う</li>
-</ul>
-</div>
-
-<div class="border-t border-black pt-3">
-<div class="mm-folio mb-2">本格 Subagent 化が必要</div>
-<ul>
-<li>同じ chat で質問ごとに Agent を切り替える</li>
-<li>複数 Agent を呼び、親 Agent が回答を統合する</li>
-<li>General / MI は直叩きなので別の transport 設計</li>
-</ul>
-</div>
-
-</div>
-
-<div class="mt-6 mm-invert-panel border-2 border-black px-5 py-3 text-sm leading-snug">
-<strong>推奨:</strong> まず初回ルーターを導入。複数 Agent 協調は、既存 Agent を callable service に切り出してから。
-</div>
-
-<!--
-AI Workspace では Agent ID / description / enabled / privilege が agents テーブルにある。
-Router は getEnabledAgentMap() を読み、user privilege で候補を絞ってから
-structured output で agentId / confidence / reason を返せる。
-
-現在の /agent route は既存 chat の selected_agent と request の agentType が異なると
-selected_agent mismatch で拒否する。そのため小さい変更で実現できるのは、
-最初の質問で1 Agentを選び、その chat では同じ Agentを使い続ける方式。
-
-質問ごとの切替・複数 Agent 統合を行うなら、固定の router-agent を追加し、
-route 内部に埋め込まれた Agent 構築処理を runAgent(agentType, context) のような
-callable service へ切り出す必要がある。
-
-General / MI Agent はブラウザから AgentCore Runtime を直接 invoke するため、
-通常 /agent route に入った後では切替できない。送信前 routing または proxy が必要。
-
-AI SDK の公式 Subagents は parent agent の tool.execute から child agent を呼ぶパターン。
-Subagent tools では needsApproval を使えないため、Holiday / User Admin の書き込みは
-初回 routing で既存 Agent へ渡す方が現時点では安全。
-
-Sources:
-https://ai-sdk.dev/v7/docs/agents/subagents
-https://github.com/mhigroup/A0005-AI-Workspace/blob/develop/frontend/app/api/chat/histories/%5BhistoryId%5D/agent/route.ts
-https://github.com/mhigroup/A0005-AI-Workspace/blob/develop/frontend/app/api/chat/histories/%5BhistoryId%5D/agent/agentRegistry.ts
-https://github.com/mhigroup/A0005-AI-Workspace/blob/develop/frontend/lib/agents/agentConfig.ts
-https://github.com/mhigroup/A0005-AI-Workspace/blob/develop/terraform/modules/dynamo/agents/variables.tf
--->
 
 ---
 layout: default
@@ -1393,6 +1285,8 @@ layout: default
 - [AI SDK 7 Blog](https://vercel.com/blog/ai-sdk-7)
 - [AI SDK Versioning Policy](https://ai-sdk.dev/v7/docs/migration-guides/versioning)
 - [WorkflowAgent ガイド](https://ai-sdk.dev/v7/docs/agents/workflow-agent)
+- [What is WorkflowAgent?](https://vercel.com/kb/guide/what-is-workflowagent)
+- [WorkflowAgent 実装 PR #12165](https://github.com/vercel/ai/pull/12165)
 - [v7 Migration Guide](https://ai-sdk.dev/v7/docs/migration-guides/migration-guide-7-0)
 - [Subagents](https://ai-sdk.dev/v7/docs/agents/subagents)
 - [Memory](https://ai-sdk.dev/v7/docs/agents/memory)
