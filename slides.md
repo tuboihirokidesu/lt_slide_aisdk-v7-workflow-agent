@@ -10,17 +10,15 @@ fonts:
   sans: 'Source Serif 4'
   serif: 'Playfair Display'
   mono: 'JetBrains Mono'
-  weights: '400,400i,500,600,700,900'
+  webfonts:
+    - 'Source Serif 4'
+    - 'Playfair Display'
+    - 'JetBrains Mono'
+  weights: '400,500,600,700,900'
   italic: true
   provider: 'google'
   fallbacks: false
-mermaid:
-  theme: 'neutral'
 highlighter: shiki
-shiki:
-  themes:
-    light: 'vitesse-light'
-    dark: 'vitesse-light'
 layout: cover
 ---
 
@@ -120,7 +118,7 @@ layout: default
 | 種類 | 公式ドキュメントの定義 |
 |---|---|
 | **Major** | Breaking API updates that require code changes |
-| **Minor** | **Blog post that aggregates new features and improvements into a public release** |
+| **Minor** | **Blog post that aggregates new features and improvements into a public release that highlights benefits** |
 | **Patch** | New features and bug fixes |
 
 <v-click>
@@ -713,7 +711,9 @@ layout: section
 # 03 — Directives
 
 <div class="mt-6 text-xl italic opacity-90 max-w-[40rem]">
-  `'use workflow'` は Next.js 専用機能ではなく、React 起源のディレクティブパターンが膨らんだもの
+
+`'use workflow'` は Next.js 専用機能ではなく、React 起源のディレクティブパターンが膨らんだもの
+
 </div>
 
 ---
@@ -727,11 +727,11 @@ layout: default
 | ディレクティブ | 出自 | 役割 |
 |---|---|---|
 | `"use strict"` | ECMAScript 5 (2009) | 厳格モード（**唯一の標準化済み**） |
-| `"use asm"` | asm.js (2013, Mozilla) | パフォーマンスヒント。WASM に置き換えられ消滅 |
-| `"use client"` | React Server Components (2023) | Client Component 境界 |
+| `"use asm"` | asm.js (2013, Mozilla) | パフォーマンスヒント。WASM に置き換えられ、専用最適化は廃止 |
+| `"use client"` | React Server Components (2022–2023) | Client Component 境界 |
 | `"use server"` | React Server Components (2023) | Server Action / Function 境界 |
 | `"use memo"` / `"use no memo"` | React Compiler (2024) | コンパイル対象制御（escape hatch） |
-| `"use cache"` | Next.js 15 / Cache Components (2024) | キャッシュ境界 |
+| `"use cache"` | Next.js 15 canary (2024) → Next.js 16 Cache Components (2025) | キャッシュ境界 |
 | `"use workflow"` / `"use step"` | Vercel Workflow SDK (2025) | 永続実行境界 |
 
 <v-click>
@@ -925,7 +925,9 @@ await agent.generate({ prompt })
 <v-click>
 
 <div class="mt-2 text-sm opacity-90">
+
 `execute` の `context` に型推論が効く。ツールごとに必要な権限・API key を分離でき、WorkflowAgent では <strong>serializable な値</strong> として step 境界を越えやすい。
+
 </div>
 
 </v-click>
@@ -968,7 +970,7 @@ v6 でも条件分岐は可能。v7 は承認ポリシーを **tool 定義から
 const deleteFile = tool({
   inputSchema: z.object({ path: z.string() }),
   needsApproval: async ({ path }) =>
-    path.startsWith('/tmp/') ? false : true,
+    !path.startsWith('/tmp/'),
   execute: async ({ path }) => removeFile(path),
 })
 ```
@@ -997,7 +999,7 @@ await streamText({
 </div>
 
 <div class="mt-2 text-sm opacity-85">
-  差分は三項演算子ではない。同じ tool 実装へ、<strong>request / Agent ごとの承認ポリシー</strong>を組み合わせられること。例外として <code v-pre>WorkflowAgent</code> は最新 docs でも <code v-pre>needsApproval</code> を使う
+  差分は三項演算子ではない。同じ tool 実装へ、<strong>request / Agent ごとの承認ポリシー</strong>を組み合わせられること。v7 では tool 定義の <code v-pre>needsApproval</code> は deprecated — 例外として <code v-pre>WorkflowAgent</code> だけは最新 docs でも <code v-pre>needsApproval</code> を使う
 </div>
 
 <!--
@@ -1185,7 +1187,7 @@ layout: default
 <li><strong>message part</strong> — image を canonical <code>file</code> part に統合</li>
 <li><strong>reasoning-file</strong> — 推論中の参照 file 用 type</li>
 <li><strong>System message</strong> — messages 内の system role をデフォルト拒否</li>
-<li><strong>MCP redirect</strong> — <code>'follow'</code> → <code>'error'</code>（SSRF 対策）</li>
+<li><strong>MCP redirect</strong> — <code>'follow'</code> → <code>'error'</code>（既定を安全側へ変更）</li>
 <li><strong>stop condition</strong> — <code>stepCountIs</code> → <code>isStepCount</code></li>
 <li><strong>package.json</strong> — <code>type: "module"</code> の要否は runtime / bundler 次第</li>
 </ul>
