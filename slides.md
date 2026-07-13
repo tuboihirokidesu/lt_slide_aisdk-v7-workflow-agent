@@ -152,9 +152,9 @@ layout: section
 layout: default
 ---
 
-# ToolLoopAgent は保存済み履歴から「新しい実行」を始める
+# ToolLoopAgent は loop を自動再開しない
 
-`DB に履歴が残る` = 落ちた loop の resume ではない。履歴を context に、**別の Agent 実行を起動する**
+DB に残るのは履歴。保存済み `messages` を context に、**別の Agent 実行を起動する**
 
 <v-clicks>
 
