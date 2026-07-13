@@ -428,6 +428,70 @@ Workflow SDK は getStepMetadata().stepId を外部 API の idempotency key に�
 layout: default
 ---
 
+# いつ workflow に載せるか
+
+<div class="mt-2 text-sm leading-snug">
+LLM が見る context はどちらの構成でも messages。変わるのは、<strong>再開の正しさが model の推測に依存しなくなる</strong>こと。
+</div>
+
+<div class="grid grid-cols-2 gap-x-6 mt-3">
+
+<div class="mm-invert-panel border-2 border-black p-5">
+<div class="mm-folio mb-1 opacity-80">EFFECTIVE</div>
+<div class="mm-italic text-xl mb-3">durable 化が効く</div>
+<ul class="text-sm leading-snug">
+<li>予約・送金・送信など<strong>副作用のある multi-step</strong></li>
+<li>高価で長い tool 実行 — 完了済み output の再利用が効く</li>
+<li>承認・待機で <strong>request timeout を超える</strong>フロー</li>
+</ul>
+<div class="mt-3 pt-3 border-t border-white/50 text-xs">
+<strong>例:</strong> 旅行予約、リサーチ→資料→配信のパイプライン
+</div>
+</div>
+
+<div class="border-2 border-black p-5">
+<div class="mm-folio mb-1">OVERKILL</div>
+<div class="mm-italic text-xl mb-3">DB 復元で十分</div>
+<ul class="text-sm leading-snug">
+<li>1〜2 step で完結する通常のチャット</li>
+<li>World の運用が増える（Postgres は worker 常駐）</li>
+<li>step 境界は serializable 前提、テストは E2E 前提</li>
+</ul>
+<div class="mt-3 pt-3 border-t border-black text-xs">
+<strong>目安:</strong> 「途中で落ちたらやり直せばいい」処理はそのままで良い
+</div>
+</div>
+
+</div>
+
+<div class="mt-4 border-l-4 border-black pl-4 text-sm leading-snug">
+DB 再開は「model が messages から続きを推測する」— 読み違えれば完了済み tool の再実行が起きる。<br>
+replay は完了済み step の output を返すため、この再実行が構造的に消える<span class="opacity-70">（外部 API の exactly-once は別途 idempotency key — 前ページ）</span>。
+</div>
+
+<!--
+Q&A 想定: 「DB から messages を復元するのと何が違う？ World だとエージェントは動きやすい？」
+
+答えの骨子:
+- DB が持つのは「何があったか」(messages / tool result の履歴)。World が持つのは「どこまで実行したか」(step 単位の進捗と output)。
+- DB ベースの再開は、保存済み messages を context にした新しい agent 実行。次にやることは model が履歴から推測する。
+  読み違えれば、完了済みの検索をやり直したり、予約を二重実行したりする。未保存の in-flight state は消える。
+- World の event log は完了 step の output を replay で即返すので、再開位置は runtime が確定する。
+  model call も保存済み結果を返すため再課金なし。retry は queue の責務で、attempt 管理の自作が不要。
+- つまり LLM の「読みやすさ」は変わらない。変わるのは、正しく続きから動くことが model の賢さに依存しなくなること。
+
+効かない場面も正直に言う:
+- 1〜2 step のチャットは DB 復元で十分。World 導入は Postgres なら graphile-worker 常駐、
+  serializable な step 境界の設計、directive が単体テストで効かないので E2E 前提、というコストが付く。
+- 置き換え関係ではない: messages / approval の保存は引き続きアプリ DB の責務。
+- exactly-once も自動保証されない。外部 API 成功後・step 記録前に落ちれば再実行され得る。
+  getStepMetadata().stepId を idempotency key に使う(前ページの注記)。
+-->
+
+---
+layout: default
+---
+
 # WorkflowAgent の承認コード例
 
 <div class="grid grid-cols-[1.08fr_0.92fr] gap-x-5 mt-2">
