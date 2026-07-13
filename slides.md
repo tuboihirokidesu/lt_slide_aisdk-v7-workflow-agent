@@ -347,53 +347,55 @@ https://vercel.com/kb/guide/what-is-workflowagent
 layout: default
 ---
 
-# World は workflow を動かす「実行 backend」
+# WorkflowAgent の裏側には実行基盤がある
 
 <div class="mt-2 text-sm leading-snug">
-<strong>どこまで終わったか</strong>を記録し、未完了 step を queue に戻して再実行する。
+進捗を保存するだけでは足りない。<strong>次の step を起動し、失敗時に retry する backend</strong> が必要。
 </div>
 
-<div class="grid grid-cols-2 gap-x-6 mt-3">
+<div class="grid grid-cols-3 gap-x-5 mt-5">
 
-<div class="border-2 border-black p-5">
-<div class="mm-folio mb-1">APP DATABASE</div>
-<div class="mm-italic text-xl mb-3">会話と画面を保存</div>
-<ul class="text-sm leading-snug">
-<li>messages・ユーザー・UI・業務データ</li>
-<li>リロード後の UI と model context を復元</li>
-<li>「次に何をするか」は別途判断</li>
-</ul>
-<div class="mt-3 pt-3 border-t border-black text-xs">
-<strong>得意:</strong> 過去の状態を読み直す
+<div class="border-t-2 border-black pt-3">
+<div class="mm-folio mb-1">01 · EVENT LOG</div>
+<div class="mm-italic text-xl mb-2">どこまで終わった？</div>
+<div class="text-sm leading-snug">
+run・step・input・output・完了状態を永続化する。
 </div>
 </div>
 
-<div class="mm-invert-panel border-2 border-black p-5">
-<div class="mm-folio mb-1 opacity-80">WORKFLOW WORLD</div>
-<div class="mm-italic text-xl mb-3">step の進捗を保存・再実行</div>
-<ul class="text-sm leading-snug">
-<li><strong>Event log</strong> — 完了済み step と output を記録</li>
-<li><strong>Queue</strong> — 未完了 step を配送・retry</li>
-<li><strong>Compute</strong> — workflow / step を実行</li>
-</ul>
-<div class="mt-3 pt-3 border-t border-white/50 text-xs">
-<strong>得意:</strong> 次に実行する step を決める
+<div class="border-t-2 border-black pt-3">
+<div class="mm-folio mb-1">02 · QUEUE</div>
+<div class="mm-italic text-xl mb-2">次に何を動かす？</div>
+<div class="text-sm leading-snug">
+未完了 step、retry、承認後の続きへ実行を配送する。
 </div>
 </div>
 
+<div class="border-t-2 border-black pt-3">
+<div class="mm-folio mb-1">03 · COMPUTE</div>
+<div class="mm-italic text-xl mb-2">どこで実行する？</div>
+<div class="text-sm leading-snug">
+workflow 関数と step 関数を実際に動かす。
+</div>
+</div>
+
+</div>
+
+<div class="mt-6 mm-invert-panel border-2 border-black px-5 py-4 text-sm leading-snug">
+この <strong>Event log + Queue + Compute</strong> 一式を、Workflow SDK では <strong>World</strong> と呼ぶ。
 </div>
 
 <div class="mt-4 border-l-4 border-black pl-4 text-sm leading-snug">
-<strong>例:</strong> 検索 ✓ → 資料作成 ✓ → メール送信中 ×<br>
-World は検索・資料作成の output を再利用し、<strong>メール step だけ</strong>を queue に戻す。
+<strong>検索 ✓ → 資料作成 ✓ → メール送信中 ×</strong><br>
+World は完了済み output を再利用し、<strong>メール step だけ</strong>を queue に戻す。
 </div>
 
-<div class="mt-2 text-xs leading-snug">
-Agent が messages から続きを推測せず、<strong>runtime が実行位置を確定する。</strong>
+<div class="mt-3 text-xs leading-snug">
+アプリ DB は messages・UI・業務データ、World は <strong>workflow の実行進捗</strong>を管理する。
 </div>
 
 <div class="mt-2 text-[10px] leading-snug opacity-80">
-World = 永続化・queue・compute を差し替える backend — <a href="https://workflow-sdk.dev/worlds" target="_blank">Worlds 公式 ↗</a> / <a href="https://workflow-sdk.dev/worlds/postgres" target="_blank">Postgres World ↗</a> · 外部 API には idempotency key が必要
+実装例: Vercel World / Postgres World / Local World — <a href="https://workflow-sdk.dev/worlds" target="_blank">Worlds 公式 ↗</a> · 外部 API には idempotency key が必要
 </div>
 
 <!--
