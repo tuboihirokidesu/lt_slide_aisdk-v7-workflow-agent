@@ -771,7 +771,7 @@ layout: default
 layout: default
 ---
 
-# WorkflowAgent は3点セットで durable になる
+# WorkflowAgent は directive と runtime があって初めて durable になる
 
 `WorkflowAgent` は **ライブラリコードだけでは durable にならない**
 
@@ -790,7 +790,7 @@ export async function chat(messages: UIMessage[]) {
 - `'use workflow'` が、この関数を **workflow の実行境界として登録**する
 - `'use step'` の呼び出しは **durable proxy** になり、input / output を event log に保存する
 - クラッシュ後は関数を replay。完了済み step は保存済み output を返し、<strong>未完了 step から実行</strong>する
-- WorkflowAgent はこの仕組みの上で動く。つまり **ライブラリ・runtime・directive の3点セット**
+- WorkflowAgent 単体では durable にならず、**directive と Workflow runtime / World が必要**
 
 </v-clicks>
 
@@ -906,12 +906,15 @@ const weather = tool({
     getWeather(location, context.apiKey),
 })
 
-await agent.generate({
-  prompt,
+const agent = new ToolLoopAgent({
+  model,
+  tools: { weather }, // ← weather tool を登録
   toolsContext: {
     weather: { apiKey: process.env.WEATHER_API_KEY! },
   },
 })
+
+await agent.generate({ prompt })
 ```
 </div>
 
@@ -919,7 +922,7 @@ await agent.generate({
 
 <v-click>
 
-<div class="mt-3 text-sm opacity-90">
+<div class="mt-2 text-sm opacity-90">
 `execute` の `context` に型推論が効く。ツールごとに必要な権限・API key を分離でき、WorkflowAgent では <strong>serializable な値</strong> として step 境界を越えやすい。
 </div>
 
@@ -928,6 +931,9 @@ await agent.generate({
 <!--
 この変更のポイントは、モデルが生成する値と、アプリが信頼して渡す値を分離できること。
 `inputSchema` は location などモデルが決める tool input、`contextSchema` は API key・tenant・権限などアプリ側の context を検証する。
+`tools: { weather }` は `tools: { weather: weather }` の省略記法で、ここで weather tool を Agent に登録する。
+同じコンストラクタの `toolsContext.weather` がこの登録名に対応し、検証済みの値が weather tool の `execute` 第2引数 `context` に渡る。
+`agent.generate()` は登録済み Agent を実行するため、ここでは prompt だけを渡す。
 `toolsContext` は tool 名ごとに分かれているので、weather tool に渡した key を別の tool が受け取らない。
 型推論だけでなく、contextSchema による runtime validation も行われる。
 
@@ -947,37 +953,58 @@ https://vercel.com/kb/guide/durableagent-to-workflowagent
 layout: default
 ---
 
-# ツール承認 API の刷新
+# Tool approval は「条件」より「置き場所」が変わる
 
-`generateText` / `streamText` / `ToolLoopAgent` は  
-`tool({ needsApproval })` → **呼び出し側の `toolApproval`** に移動
+v6 でも条件分岐は可能。v7 は承認ポリシーを **tool 定義から呼び出し側へ分離**
 
-```ts {all|2-7|10-16}
-// AI SDK 6 — 承認ロジックがツール定義に固定されていた
+<div class="grid grid-cols-2 gap-5 mt-4">
+
+<div>
+<div class="mm-folio mb-2">AI SDK 6 · tool 定義に固定</div>
+
+```ts
 const deleteFile = tool({
   inputSchema: z.object({ path: z.string() }),
-  needsApproval: async ({ path }) => !path.startsWith('/tmp/'),
+  needsApproval: async ({ path }) =>
+    path.startsWith('/tmp/') ? false : true,
   execute: async ({ path }) => removeFile(path),
-})
-
-// AI SDK 7 — 呼び出し側で承認ポリシーを決める
-await streamText({
-  model,
-  tools: { deleteFile },
-  toolApproval: {
-    deleteFile: async ({ path }) =>
-      path.startsWith('/tmp/') ? undefined : 'user-approval',
-  },
 })
 ```
 
-<div class="mt-3 text-sm opacity-85">
-  承認ポリシーを <strong>リクエスト単位</strong> で差し替えられる。例外として <code v-pre>WorkflowAgent</code> は workflow-aware な approval フローのため、最新 docs でも tool 定義の <code v-pre>needsApproval</code> を使う
+`/tmp` は自動実行、それ以外は承認。**v6 でも書ける**
+</div>
+
+<div>
+<div class="mm-folio mb-2">AI SDK 7 · 呼び出し側で指定</div>
+
+```ts
+const deleteFile = tool({ inputSchema, execute })
+
+await streamText({
+  tools: { deleteFile },
+  toolApproval: {
+    deleteFile: async ({ path }) =>
+      isAdmin && path.startsWith('/tmp/')
+        ? undefined
+        : 'user-approval',
+  },
+})
+```
+</div>
+
+</div>
+
+<div class="mt-2 text-sm opacity-85">
+  差分は三項演算子ではない。同じ tool 実装へ、<strong>request / Agent ごとの承認ポリシー</strong>を組み合わせられること。例外として <code v-pre>WorkflowAgent</code> は最新 docs でも <code v-pre>needsApproval</code> を使う
 </div>
 
 <!--
-AI SDK 7 では、承認は tool 固有の性質ではなく「その tool を今回どう使うか」という呼び出し側のポリシーになった。
-同じ deleteFile tool でも、管理者の一時ファイル削除は自動許可、本番領域は user approval、といった差し替えができる。
+質問のとおり、v6 の `needsApproval` も関数なので、path を見た条件分岐や三項演算子は書ける。
+以前の説明は「v7 で初めて条件分岐できる」と読めてしまうため不正確だった。
+
+AI SDK 7 の差分は表現力そのものではなく、承認を tool 固有の定義から「その tool を今回どう使うか」という呼び出し側のポリシーへ分離したこと。
+例では同じ deleteFile 実装に対して、request の isAdmin と tool input の path を組み合わせて判定している。
+別の route や Agent では、deleteFile を定義し直さず `user-approval` 固定や別の判定へ差し替えられる。
 toolApproval は特定 tool の固定値だけでなく、typed function や catch-all policy も使え、auto-approve / auto-deny / user-approval を返せる。
 
 user approval の場合、SDK は tool execution の前に approval request を出す。
@@ -1029,43 +1056,59 @@ await supportAgent.generate({
 layout: default
 ---
 
-# Memory — 3 つの使い分け
+# Memory — 操作 IF と保存基盤は別
 
 <div class="text-xs opacity-80 -mt-2 mb-4">
-Docs: <a href="https://ai-sdk.dev/v7/docs/agents/memory">ai-sdk.dev/v7/docs/agents/memory</a>
+Docs: <a href="https://ai-sdk.dev/v7/docs/agents/memory">AI SDK</a> · <a href="https://platform.claude.com/docs/en/agents-and-tools/tool-use/memory-tool">Anthropic</a> · <a href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/memory-types.html">AgentCore</a>
 </div>
 
-| アプローチ | 何を任せる？ | 選ぶとき |
+| 選択肢 | どこまで提供する？ | 向く記憶 |
 |---|---|---|
-| **Provider-defined tools**<br/>例: Anthropic Memory Tool | モデルに memory 操作の判断を任せる。自分は保存先を実装 | Claude 前提で、最小実装にしたい |
-| **Memory providers**<br/>例: Letta / Mem0 | 外部 provider に抽出・検索・注入を任せる | 既製の長期記憶基盤や管理画面を使いたい |
-| **Custom tool** | schema、検索、保存、権限、監査を自前で持つ | DB/RAG/権限制御を完全に握りたい |
+| **Anthropic Memory Tool**<br/>provider-defined tool | Claude が `view/create/str_replace` を判断。**保存先は自前** | Claude の作業ノート、案件別 context |
+| **AgentCore Memory**<br/>managed service | AWS が会話から抽出・統合し、意味検索。namespace / IAM も提供 | ユーザー設定、Agent 横断の長期記憶 |
+| **Custom tool / store** | schema、検索、保存、権限、監査をすべて自前で持つ | 厳密な業務ルール、独自 DB / RAG |
 
 <div class="mt-4 border-2 border-black p-4 text-sm leading-snug">
-<strong>Anthropic Memory Tool の嬉しさ:</strong>
-Claude が知っている `/memories` IF（`view/create/replace` 等）を使える。
-独自 memory tool の schema 設計をかなり省ける一方、Claude 専用の provider lock-in は受け入れる。
+<strong>AI Workspace:</strong>
+既存の AgentCore Memory を正式な長期記憶として継続。
+Anthropic Memory Tool は Claude 専用の作業ノートが必要なときだけ追加し、置き換えない。
 </div>
 
 <!--
 最初に、ここでいう Memory はチャット履歴の保存や Workflow の durability とは別物。
 会話をまたいで有用な事実を抽出・保存し、必要なタイミングで次の model context に戻す仕組みを指す。
 
-3つは effort / flexibility / lock-in のトレードオフ。
-Provider-defined tool は、モデルが学習済みの memory interface を利用できるので実装が小さい。
-ただし Anthropic Memory Tool が保存先まで提供するわけではなく、filesystem・DB などへの execute はアプリ側で実装する。
+Anthropic Memory Tool と AgentCore Memory は、同じ Memory でも担当する層が違う。
+Anthropic Memory Tool は Claude が学習済みのファイル風操作 IF。
+Claude は `/memories` に対する view / create / str_replace などを tool call で要求するが、実際の filesystem・DB・S3 への保存と権限制御はアプリが実装する。
+つまり保存基盤ではなく、Claude とアプリ管理の記憶をつなぐ操作 IF。
 
-Memory provider は、抽出・保存・検索・prompt への注入を外部サービスへ任せる。
-導入は速いが、何が記憶され、なぜ検索されたかの制御や可視性は provider に依存する。
+AgentCore Memory は AWS の managed service。
+CreateEvent で受け取った会話から strategy がユーザー設定・事実・要約などを非同期に抽出・統合し、namespace ごとの長期記憶として保存する。
+次の実行では意味検索で関連記憶を取り出せるため、Claude 以外のモデルや複数 Agent でも共有しやすい。
 
-Custom tool は最も手間がかかる一方、schema、ranking、tenant 分離、権限、監査、削除をすべて制御できる。
-業務データや個人情報を扱う場合は、保存期間、ユーザー単位の namespace、削除要求、prompt injection 対策まで設計対象になる。
+AI Workspace はすでにこの AgentCore Memory を利用している。
+ユーザー発話と assistant 回答を event として送り、次の request では現在の発話を query に `/ユーザーID/preferences/` を検索し、上位10件を system prompt の long_term_memory に注入している。
+これはユーザー設定を Agent 横断で再利用する用途に合うので、Anthropic Memory Tool に置き換えない。
 
-選び方を一言でまとめると、Claude 前提で早く始めるなら provider-defined、
-基盤運用を外注するなら memory provider、ガバナンスを握るなら custom tool。
+Anthropic Memory Tool を追加するなら、案件別の判断・進捗など Claude 自身が必要時に読む作業ノートへ用途を限定する。
+同じユーザー設定を両方に持つと、内容が食い違ったときの正本と削除ルールが曖昧になる。
+
+Bedrock 経由でも Memory Tool は利用できるが、AWS docs では Beta Service とされ、`anthropic_beta: ["context-management-2025-06-27"]` が必要。
+AWS docs が明示するモデルは Claude Sonnet 4.5 なので、実際の inference profile / model ID ごとに結合テストする。
+AI SDK では Anthropic Messages API を InvokeModel 経由で呼ぶ `@ai-sdk/amazon-bedrock/anthropic` が Anthropic 固有 tool の自然な経路。
+現在の AI Workspace は汎用 `createAmazonBedrock()` 経路なので、Memory Tool のためだけに全面移行せず、reasoning・prompt cache・streaming・HITL を含めて小さく検証する。
+
+Custom tool / store は最も手間がかかる一方、schema、ranking、tenant 分離、権限、監査、削除をすべて制御できる。
+業務データや個人情報を扱う場合は、保存期間、ユーザー単位の namespace、削除要求、path traversal、prompt injection 対策まで設計対象になる。
 
 Source:
 https://ai-sdk.dev/v7/docs/agents/memory
+https://platform.claude.com/docs/en/agents-and-tools/tool-use/memory-tool
+https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/memory-types.html
+https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/long-term-configuring-built-in-strategies.html
+https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters-anthropic-claude-messages-tool-use.html
+https://ai-sdk.dev/providers/ai-sdk-providers/amazon-bedrock#bedrock-anthropic-provider-usage
 -->
 
 ---
