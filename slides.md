@@ -158,15 +158,16 @@ layout: section
 layout: default
 ---
 
-# ToolLoopAgent は実行途中から自動再開できない
+# ToolLoopAgent は保存済み履歴から「新しい実行」を始める
 
-`ToolLoopAgent` の **実行中 loop** はインメモリ。DB に保存したチャット履歴まで消えるわけではない
+`DB に履歴が残る` = 落ちた loop の resume ではない。履歴を context に、**別の Agent 実行を起動する**
 
 <v-clicks>
 
-- DB に保存済みの `messages` / チャット履歴は **残る**
-- 障害時に失うのは、未保存の step・tool result・生成途中の回答などの **in-flight state**
-- 保存済み履歴から次の request を開始できるが、同じ checkpoint からの **自動再開ではない**
+- DB から保存済みの `messages` / tool result を読み出す
+- それを入力に `generate()` / `stream()` を再度呼び、**新しい loop を開始**
+- 未保存の step・tool result・生成途中の回答などの **in-flight state は失う**
+- したがって、同じ checkpoint からの **自動再開ではない**
 - tool の副作用だけ成功して記録前に落ちると、再実行による二重処理を防ぐ **冪等性** が必要
 - step 単位の永続化・再試行・観測はアプリ側で設計する
 
@@ -193,12 +194,44 @@ assistant 応答は基本的に onEnd で保存する。onStepEnd は telemetry 
 tool call / tool result を durable step として保存してはいない。
 コード上も timeout 時は onEnd が bypass され、部分応答は保存されないと明記されている。
 
-一方、General Agent の直叩き経路はより durable に近い。
-ユーザー発話の即時保存、assistant text がある HITL ゲート到達時の parts checkpoint、
-abort / disconnect / error 時の部分 assistant 保存、Claude SDK transcript の S3 mirror / resume がある。
-ただし pending approval の Queue はプロセスメモリ上で sticky session 前提。
-また tool の副作用を tool_use_id で実行前後に台帳化する汎用 idempotency layer はない。
-したがって「部分的な durability は自前実装済み。ただし Workflow step 相当の exactly-once / replay ではない」が正確。
+一方、General Agent は「会話を戻す」仕組みを通常経路より多く持っている。
+何が残るのかを、4つの状態に分けて説明する。
+
+1. 画面用の会話履歴は DynamoDB に残る。
+   ユーザー発話は送信直後に保存する。
+   assistant text がある HITL ゲートでは、その時点の user / assistant / parts も checkpoint 保存する。
+   abort / disconnect / error 時も、表示済みの部分 assistant があれば保存する。
+   これにより、リロード後に「画面に出ていた会話」を戻せる。
+
+2. Claude SDK の transcript は S3 に残る。
+   SDK の JSONL transcript を S3 に mirror し、新しい microVM で読み込んで
+   `resume=session_id` を渡す。これにより、Claude の会話 context を引き継げる。
+
+ただし、次の2つは同じようには復元できない。
+
+3. 承認待ちの実行はプロセスメモリ上にある。
+   実際に承認を待っているのは `asyncio.Queue` の `queue.get()`。
+   承認結果は sticky routing で同じ microVM へ届ける前提になっている。
+   microVM が落ちると Queue と待機中の処理は消えるため、
+   DynamoDB の承認カードや S3 transcript が残っていても、元の待機処理自体は戻らない。
+
+4. tool の副作用を管理する共通の実行台帳はない。
+   `tool_use_id` は tool call / result の紐付けや、承認配送、UI checkpoint の dedupe には使っている。
+   しかし `started / completed / attempt / external_operation_id` のような汎用台帳ではない。
+   外部 API だけ成功し、tool result の記録前に落ちると、再実行で二重処理が起き得る。
+
+つまり General Agent は、「会話と Claude SDK session の復元」には強い。
+一方で、承認待ちを再構築し、tool step の status / retry / replay を管理する
+durable workflow runtime にはなっていない。
+
+WorkflowAgent は step checkpoint / retry / replay の管理を runtime の責務にする。
+ただし WorkflowAgent でも外部 API の exactly-once は自動保証されないため、idempotency key は別途必要。
+
+AI Workspace sources (commit f9ab739):
+https://github.com/mhigroup/A0005-AI-Workspace/blob/f9ab739bb4b766543cbadce11bf7438911a33594/frontend/app/(authenticated)/(chat)/_context/chatContext.tsx
+https://github.com/mhigroup/A0005-AI-Workspace/blob/f9ab739bb4b766543cbadce11bf7438911a33594/runtime/shared/chat/session_store.py
+https://github.com/mhigroup/A0005-AI-Workspace/blob/f9ab739bb4b766543cbadce11bf7438911a33594/runtime/shared/chat/hitl.py
+https://github.com/mhigroup/A0005-AI-Workspace/blob/f9ab739bb4b766543cbadce11bf7438911a33594/frontend/lib/general-agent/transport.ts
 -->
 
 ---
@@ -437,9 +470,8 @@ World は append-only event log を中心に run / event / step / hook を管理
 - Postgres World: PostgreSQL の runs / events / steps / hooks + graphile-worker
 - Local World: .workflow-data/ の JSON。queue は in-memory なので開発用
 
-WorkflowAgent の needsApproval は messages 継続。
-承認状態をチャットとして再表示するには、アプリ DB への messages 保存が引き続き必要。
-同じ workflow run を承認待ちで suspend したい場合は Workflow SDK Hook を使う別設計。
+WorkflowAgent の needsApproval は workflow を suspend し、承認後に同じ run を resume する。
+ただし承認状態をチャットとして再表示するには、アプリ DB への messages 保存が引き続き必要。
 
 最後に重要な注意。
 Workflow runtime が step を retry できても、外部 API の exactly-once までは自動保証しない。
@@ -481,7 +513,7 @@ export async function chat(messages) {
 ```
 
 <div class="mt-1 border-l-4 border-black pl-3 text-[11px] leading-snug">
-<strong>DB が不要になるわけではない:</strong> 同じ run の再開は World。新しいユーザー発話の <code>messages</code> 取得とチャット画面の復元はアプリ DB。
+<strong>DB をなくすのではなく、役割を分ける:</strong> 会話はアプリ DB、承認後の再開は World。価値は高速化より、完了済み step をやり直さないこと。
 </div>
 
 <!--
@@ -490,6 +522,14 @@ WorkflowAgent の needsApproval は approval request を writable へ出した�
 
 ただし agent.stream() の開始時には ModelMessage[] が必要。
 新しいユーザー発話で別の run を始める場合や、過去の会話を画面に復元する場合は、アプリ DB のチャット履歴を引き続き使う。
+
+World への永続化・読み出しがあるため、承認後の処理が必ず速くなるわけではない。
+単純な正常系では queue / checkpoint の overhead が増える場合もある。
+大きな価値は、障害後や長い承認待ちの後でも完了済み model / tool step を再実行せず、正しい続きから再開できること。
+
+World は AI モデルの記憶ではない。AI が event log を直接読むのでもない。
+Workflow runtime が実行状態を復元し、次の model call に必要な messages / tool result を構成するための実行台帳。
+したがって「AI に近い」より「Agent の実行 runtime に直結している」が正確。
 -->
 
 ---
@@ -649,7 +689,7 @@ export default function Chat() {
 ```
 
 <div class="mt-2 text-[11px] border-t-2 border-black pt-2">
-  <code>x-workflow-run-id</code> + <code>GET /api/chat/{runId}/stream</code> は <strong>切断 stream の同一 run 再接続</strong>。approval は messages へ応答を追加して再 POST する別フロー。
+  <code>x-workflow-run-id</code> + <code>GET /api/chat/{runId}/stream</code> は <strong>切断 stream の再接続</strong>。approval は workflow を suspend し、応答後に<strong>同じ run を resume</strong>する別フロー。
 </div>
 
 <!--
@@ -699,30 +739,6 @@ stable 化で機能を揃え、その後は <strong>production で壊れにく�
 
 <div class="mt-1 text-[9px] opacity-70">
 Sources: <a href="https://vercel.com/blog/ai-sdk-7">AI SDK 7 Blog</a> / <a href="https://github.com/vercel/ai/blob/main/packages/ai/CHANGELOG.md">ai CHANGELOG</a> / <a href="https://github.com/vercel/ai/blob/main/packages/workflow/CHANGELOG.md">workflow CHANGELOG</a>
-</div>
-
----
-layout: default
----
-
-# MCP Apps: 2つの sandbox
-
-<div class="mm-slide-lead">
-MCP Apps は tool result に紐づく <code>ui://</code> HTML resource を、<code>experimental_MCPAppRenderer</code> が sandboxed iframe に描画する仕組み
-</div>
-
-| レイヤー | 何を隔離するか | AI SDK 7 での見方 |
-|---|---|---|
-| **MCP Apps / iframe** | `ui://` HTML resource を browser の sandboxed iframe に閉じ込める | `modelVisible` tools だけを LLM に渡し、`appVisible` tools は UI 側に残す |
-| **Host API** | iframe からの要求を server 側で検査する | `readMCPAppResource` で HTML / CSP / permissions を読み、`callTool` は allowlist / auth / approval を通す |
-| **Vercel Sandbox** | Firecracker microVM で未信頼コードを実行する | MCP Apps の表示 sandbox ではない。Code Mode 風の `execute(code)` や preview server の実行基盤にできる |
-
-<div class="mt-4 border-t-2 border-black pt-3 text-base">
-つまり: <strong>モデルに見せる能力</strong> と <strong>ユーザーが操作する UI</strong> と <strong>未信頼コード実行</strong> を別々に設計できる。
-</div>
-
-<div class="mt-2 text-sm opacity-70">
-Docs: <a href="https://vercel.com/kb/guide/ai-sdk-mcp-apps">AI SDK MCP Apps guide</a> / <a href="https://vercel.com/docs/sandbox">Vercel Sandbox</a> / <a href="https://blog.cloudflare.com/ja-jp/code-mode-mcp/">Cloudflare Code Mode</a>
 </div>
 
 ---
@@ -1211,7 +1227,7 @@ layout: default
 2. **Subagents の第一級サポート** — `createSubagent()` のような API で「親 durable・子も durable」を自然に書きたい
 3. **AI SDK レベルでの "World" 公式サポート** — Workflow SDK 側に Worlds は既にあるので、AI SDK のドキュメントでも非 Vercel World の例を提示してほしい
 4. **WorkflowAgent の observability recipe** — `runId` / step / tool / model call を外部 APM と紐付ける定石
-5. **承認継続と stream 再接続の整理** — messages 再 POST と同一 run reconnect の違いをより明確に
+5. **承認 resume と stream 再接続の整理** — 同じ run を扱う2つの制御経路をより明確に
 6. **非 serializable resource の定石** — context ではなく step 内再接続、という公式パターン
 
 </v-clicks>
@@ -1242,7 +1258,7 @@ layout: default
 <div>
 <div class="mm-folio mb-1">02</div>
 <div class="mm-italic text-xl">WorkflowAgent</div>
-<div class="text-sm">model call と 'use step' tool を durable 化。承認継続は messages ベース</div>
+<div class="text-sm">model call と 'use step' tool を durable 化。承認後は同じ run を resume</div>
 </div>
 
 <div>
