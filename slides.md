@@ -434,39 +434,39 @@ layout: default
 LLM が見る context はどちらの構成でも messages。変わるのは、<strong>再開の正しさが model の推測に依存しなくなる</strong>こと。
 </div>
 
-<div class="grid grid-cols-2 gap-x-6 mt-3">
+<div class="grid grid-cols-2 gap-x-6 mt-2">
 
-<div class="mm-invert-panel border-2 border-black p-5">
+<div class="mm-invert-panel border-2 border-black p-4">
 <div class="mm-folio mb-1 opacity-80">EFFECTIVE</div>
-<div class="mm-italic text-xl mb-3">durable 化が効く</div>
+<div class="mm-italic text-xl mb-2">durable 化が効く</div>
 <ul class="text-sm leading-snug">
-<li>予約・送金・送信など<strong>副作用のある multi-step</strong></li>
-<li>高価で長い tool 実行 — 完了済み output の再利用が効く</li>
-<li>承認・待機で <strong>request timeout を超える</strong>フロー</li>
+<li>予約・送金・送信など<strong>副作用を伴う multi-step</strong></li>
+<li>高価・長時間の tool — 完了 output を再利用したい</li>
+<li>承認・待機で <strong>request timeout を超える</strong></li>
 </ul>
-<div class="mt-3 pt-3 border-t border-white/50 text-xs">
+<div class="mt-2 pt-2 border-t border-white/50 text-xs">
 <strong>例:</strong> 旅行予約、リサーチ→資料→配信のパイプライン
 </div>
 </div>
 
-<div class="border-2 border-black p-5">
+<div class="border-2 border-black p-4">
 <div class="mm-folio mb-1">OVERKILL</div>
-<div class="mm-italic text-xl mb-3">DB 復元で十分</div>
+<div class="mm-italic text-xl mb-2">DB 復元で十分</div>
 <ul class="text-sm leading-snug">
-<li>1〜2 step で完結する通常のチャット</li>
-<li>World の運用が増える（Postgres は worker 常駐）</li>
-<li>step 境界は serializable 前提、テストは E2E 前提</li>
+<li>1〜2 step の通常チャット</li>
+<li>World の運用コストが見合わない</li>
+<li>serializable な step 設計・E2E テストが重い</li>
 </ul>
-<div class="mt-3 pt-3 border-t border-black text-xs">
+<div class="mt-2 pt-2 border-t border-black text-xs">
 <strong>目安:</strong> 「途中で落ちたらやり直せばいい」処理はそのままで良い
 </div>
 </div>
 
 </div>
 
-<div class="mt-4 border-l-4 border-black pl-4 text-sm leading-snug">
-DB 再開は「model が messages から続きを推測する」— 読み違えれば完了済み tool の再実行が起きる。<br>
-replay は完了済み step の output を返すため、この再実行が構造的に消える<span class="opacity-70">（外部 API の exactly-once は別途 idempotency key — 前ページ）</span>。
+<div class="mt-3 border-l-4 border-black pl-4 text-sm leading-snug">
+DB 再開は model が続きを推測する。Workflow は完了 step の output を返し、同じ tool の再実行を防ぐ。<br>
+<span class="opacity-70">※ 外部 API の exactly-once には、別途 idempotency key が必要。</span>
 </div>
 
 <!--
@@ -792,15 +792,14 @@ layout: default
 |---|---|---|
 | `"use strict"` | ECMAScript 5 (2009) | 厳格モード（**唯一の標準化済み**） |
 | `"use asm"` | asm.js (2013, Mozilla) | パフォーマンスヒント。WASM に置き換えられ、専用最適化は廃止 |
-| `"use client"` | React Server Components (2022–2023) | Client Component 境界 |
-| `"use server"` | React Server Components (2023) | Server Action / Function 境界 |
+| `"use client"` / `"use server"` | React Server Components (2022–2023) | Client / Server 境界 |
 | `"use memo"` / `"use no memo"` | React Compiler (2024) | コンパイル対象制御（escape hatch） |
 | `"use cache"` | Next.js 15 canary (2024) → Next.js 16 Cache Components (2025) | キャッシュ境界 |
 | `"use workflow"` / `"use step"` | Vercel Workflow SDK (2025) | 永続実行境界 |
 
 <v-click>
 
-最初は ECMAScript 標準だったのに、**フレームワーク・ランタイムが各々増やしている**現状
+JS 標準は `"use strict"` だけ。以降は **各フレームワーク / runtime 独自の約束**
 
 </v-click>
 
