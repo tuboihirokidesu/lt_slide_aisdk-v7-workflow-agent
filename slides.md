@@ -486,6 +486,18 @@ Q&A 想定: 「DB から messages を復元するのと何が違う？ World だ
 - 置き換え関係ではない: messages / approval の保存は引き続きアプリ DB の責務。
 - exactly-once も自動保証されない。外部 API 成功後・step 記録前に落ちれば再実行され得る。
   getStepMetadata().stepId を idempotency key に使う(前ページの注記)。
+
+Q&A 想定: 「workflow って DB の上位互換？」→ 違う。直交する別レイヤーで、どちらも相手の代わりはできない。
+- event log は run 単位・append-only の「実行のための内部台帳」。
+  「ユーザー X の会話一覧」「人気順検索」のようなドメインクエリはできないし、する設計でもない。
+  Vercel World では run ごとの鍵で step 入出力が暗号化されており、アプリが読みにいく代物ではない。
+  保持期間も run に紐づき、監査・削除要求・リレーションといったビジネスデータの保存要件は満たせない。
+- 実際のデータフローも「workflow の step が最終結果をアプリ DB に書き込む」という協調関係。
+- 「上位互換」と言えるのは DB ではなく、DB の周りに自作しがちな実行管理の寄せ集めの方:
+  status / attempt_count / next_action カラム、job queue、リトライ用 cron、outbox パターン。
+  Cadence が Uber で解いたのがまさに「queue ＋ DB ＋ cron の寄せ集めが壊れる」問題。
+- 一言でまとめ: 「DB の代わり」ではなく「DB に押し込みがちだった実行管理の代わり」。
+  データは今後も DB、進行状態は workflow、という分業。
 -->
 
 ---
