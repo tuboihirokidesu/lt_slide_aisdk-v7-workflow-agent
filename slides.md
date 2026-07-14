@@ -863,6 +863,60 @@ export async function chat(messages: UIMessage[]) {
 layout: default
 ---
 
+# durable execution も突然変異ではない
+
+「event log ＋ 決定論的 replay ＋ step checkpoint」という実行モデルにも **10 年以上の系譜**がある
+
+| システム | 年 | 貢献 |
+|---|---|---|
+| AWS Simple Workflow Service | 2012 | workflow-as-code の原型（decider / activity） |
+| AWS Step Functions | 2016 | 状態機械の managed 化（コードではなく JSON 定義） |
+| Uber Cadence | 2017 OSS | event sourcing ＋ replay で「コードが workflow」に |
+| Azure Durable Functions | 2017 | serverless の orchestrator / activity ＋ checkpoint & replay |
+| Temporal | 2019 | Cadence 作者が spin-out。durable execution の事実上の標準 |
+| Inngest / Restate / DBOS | 2021– | TypeScript ネイティブな durable execution の再解釈 |
+| **Vercel Workflow DevKit** | **2025** | **directive で境界を宣言、World で backend を差し替え** |
+
+<v-click>
+
+<div class="mt-3 border-l-4 border-black pl-4 text-sm leading-snug">
+Temporal との対応: workflow ≒ <code v-pre>'use workflow'</code> / activity ≒ <code v-pre>'use step'</code> / history ≒ event log / task queue ≒ queue / worker ≒ World の compute。<br>
+Vercel の新規性は概念ではなく、<strong>コンパイラ（directive）と差し替え可能な World 抽象という DX</strong>。
+</div>
+
+</v-click>
+
+<!--
+Q&A 想定: 「workflow / World って Vercel が提唱した概念？」への答えがこのスライド。
+
+- durable execution の概念・実行モデルは Vercel 発ではない。event log への記録＋決定論的 replay＋
+  step(activity) 単位の checkpoint は、Cadence → Temporal、Azure Durable Functions、
+  AWS SWF → Step Functions と続く系譜そのもの。
+- Vercel 発なのは2つ: 'use workflow' / 'use step' という directive をコンパイル時
+  (@workflow/swc-plugin) に変換して境界を切る DX と、永続化・queue・compute を
+  差し替え可能な backend として「World」と呼ぶ抽象・命名。
+
+queue の役割を聞かれたら:
+- replay が未実行 step に到達すると「run X の step Y を実行せよ」という job が queue に積まれ、
+  queue が step 実行関数を起動する。失敗時の再配送 = retry の実体。
+  だから「retry の所有者が runtime」になる。
+- Vercel World では Vercel Queues (managed, at-least-once) が __wkf_step_* / __wkf_workflow_* topic で
+  step.func / flow.func を起動する。Postgres World では graphile-worker、Local World は in-memory。
+
+Sources:
+https://aws.amazon.com/about-aws/whats-new/2012/02/21/introducing-amazon-simple-workflow/
+https://aws.amazon.com/blogs/aws/new-aws-step-functions-build-distributed-applications-using-visual-workflows/
+https://github.com/uber/cadence
+https://learn.microsoft.com/azure/azure-functions/durable/durable-functions-overview
+https://temporal.io/about
+https://vercel.com/blog/introducing-workflow
+https://workflow-sdk.dev/docs/how-it-works/framework-integrations
+-->
+
+---
+layout: default
+---
+
 # 採用するときの実践的指針
 
 <v-clicks>
@@ -1357,6 +1411,7 @@ layout: default
 <div class="mm-folio mb-1 text-[10px]">Directives & Workflow</div>
 
 - [React Compiler Directives](https://react.dev/reference/react-compiler/directives)
+- [Introducing Workflow DevKit (2025-10-23)](https://vercel.com/blog/introducing-workflow)
 - [Workflow SDK (workflow-sdk.dev)](https://workflow-sdk.dev)
 - [vercel/workflow (GitHub)](https://github.com/vercel/workflow)
 - [Workflow SDK Worlds](https://workflow-sdk.dev/worlds)
