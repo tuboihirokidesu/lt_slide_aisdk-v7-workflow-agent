@@ -768,11 +768,30 @@ maxConsecutiveErrors:
 - 上限に達すると reconnect loop が error を投げて終了する。
 
 initialStartIndex:
-- public `reconnectToStream()` など、既知の chunkIndex がない最初の reconnect に使う。default は 0。
+- 使われるのは「既知の chunkIndex がない初回接続」だけ。リロード後の resume や
+  public `reconnectToStream()` がそれ。POST 中の切断リトライは受信済み chunkIndex から
+  自動継続するので、この値は関係ない。default は 0。
 - `-50` は durable stream の末尾50 chunksを読む指定。UIMessage 50件ではない。
-- 2回目以降の retry は、受信済み chunkIndex から続行する。
-- 負数を使う場合、endpoint の `x-workflow-stream-tail-index` で絶対位置を解決する。
+- 負数は endpoint の `x-workflow-stream-tail-index` header で絶対位置に解決する。
   header がなければ、retry は誤った位置を避けるため stream 先頭からの replay に fallback する。
+
+「固定値だと決められないのでは？」と聞かれたら:
+- コンストラクタ値は per-call 指定を省略したときのデフォルトに過ぎない。
+  `reconnectToStream({ startIndex })` で再接続ごとにオーバーライドできる。
+- 正確な resume を組む材料も transport が提供している:
+  `onChatSendMessage` の response header (x-workflow-run-id) で runId、
+  `onChatEnd({ chatId, chunkIndex })` で最終位置が取れる。DB に保存して正の絶対値で渡せば
+  厳密な続きから再開できる。正の startIndex は「呼び出し側の明示的な選択」として信頼される。
+- 負数 N の精度は結果にあまり効かない。小さすぎると進行中メッセージの先頭が窓の外に落ち、
+  orphan filter が断片を捨てる(そのメッセージは途中からの表示になる)。
+  大きすぎても余分な replay が増えるだけ。「進行中の1メッセージ分を覆う」程度のラフな値で良い。
+- orphan filter は負数 resume のときだけ有効。途中断片で AI SDK の stream processor が
+  落ちる実バグ (vercel/workflow#1835) への対処。
+
+選び方の整理:
+- stream だけで UI を再構築する設計 → 0 (default)
+- 会話はアプリ DB から復元し、live 出力に追いつくだけで良い → 負数 tail
+- 精密に続きから → (runId, chunkIndex) を永続化して per-call の正値で渡す
 
 Source:
 https://github.com/vercel/ai/blob/main/packages/workflow/src/workflow-chat-transport.ts
