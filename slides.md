@@ -1512,6 +1512,38 @@ tool context・approval・WorkflowAgent・Memory・Telemetry。production 運用
 
 </div>
 
+<!--
+Q&A 用の全体像チートシート。登場人物は全部、別レイヤーの別の仕事。
+
+アプリ DB          … データの正本 (messages・ユーザー・業務データ)
+Workflow runtime   … 実行の進捗管理
+  Event log        … どの step がどこまで終わったかの記録 (replay の正本)
+  Queue            … 未完了 step の配送と retry
+  Compute          … その step を動かす場所
+    Vercel World   … serverless invocation (常駐なし、maxDuration 制約)
+    Postgres World … 自前の常駐 worker (制約なし、運用は自分)
+Sandbox            … step の中から呼ぶ「信頼できないコードの隔離実行」道具
+Memory             … AgentCore = システムが自動で溜める横断記憶 /
+                     Anthropic Memory Tool = Claude が自分で書く作業ノート (保存先は自前)
+
+聴衆が引っかかりやすい混同 4つ:
+1. workflow は DB の上位互換ではない。置き換えるのは DB ではなく、DB の周りに自作しがちな
+   実行管理 (status カラム・job queue・リトライ cron・outbox)。
+2. compute は言語の話ではない。Node はどの World でも共通。違いは「そのプロセスを
+   誰がどこで起動するか」(serverless invocation か常駐 worker か)。
+3. Sandbox は compute の選択肢ではない。自分のデプロイ済みコードは Functions でいい。
+   Sandbox は LLM が生成したコード等を step の中から隔離実行する道具。Sandbox World は存在しない。
+4. Memory Tool は保存基盤ではない。Anthropic 側には何も残らず、保存先は自前。
+   AgentCore Memory とは択一ではなく役割分担 (同じデータの重複だけが禁止)。
+
+一言ずつ:
+- DB = 何があったか
+- Workflow = どこまで実行したか
+- Compute = どこで実行するか
+- Sandbox = 危ないものをどこに閉じ込めるか
+- Memory = 何を覚えておくか (自動で溜めるか、Claude が書くか)
+-->
+
 ---
 layout: default
 ---
