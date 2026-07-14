@@ -1083,29 +1083,35 @@ layout: default
 
 # API key と権限を、ツールごとに型安全に渡す
 
-ツールが必要なサーバー側の値を **schema として宣言** できる
+multi-tenant の per-request 注入は **v6 でも可能**。v7 の差分は **宣言・検証・分離**
 
-<div class="grid grid-cols-2 gap-5 mt-4">
+<div class="grid grid-cols-2 gap-5 mt-2">
 
 <div>
-<div class="mm-folio mb-2">Before · 旧実装</div>
+<div class="mm-folio mb-2">AI SDK 6 · 共有 context</div>
 
 ```ts
-const apiKey = process.env.WEATHER_API_KEY!
-const weather = tool({
-  inputSchema: z.object({ location: z.string() }),
-  execute: async ({ location }) =>
-    getWeather(location, apiKey),
+await streamText({
+  tools: { weather, crm },
+  // 注入は呼び出し側 — 全 tool が同じバッグを見る
+  experimental_context: { apiKey: tenant.key },
 })
+
+// tool 側は手動キャスト
+execute: async (input, opts) => {
+  const { apiKey } =
+    opts.experimental_context as TenantCtx
+  // ...
+}
 ```
 
-- 外側の値に暗黙依存
-- tool単体で必要な値が読めない
-- テストや差し替えで壊れやすい
+- テナントごとの注入は **v6 でも書ける**
+- ただし型は `unknown` — キャスト頼み、検証なし
+- weather 用の key が **crm からも見える**
 </div>
 
 <div>
-<div class="mm-folio mb-2">After · AI SDK 7</div>
+<div class="mm-folio mb-2">AI SDK 7 · tool ごとに宣言</div>
 
 ```ts
 const weather = tool({
@@ -1117,14 +1123,16 @@ const weather = tool({
 
 const agent = new ToolLoopAgent({
   model,
-  tools: { weather }, // ← weather tool を登録
+  tools: { weather, crm },
   toolsContext: {
-    weather: { apiKey: process.env.WEATHER_API_KEY! },
+    weather: { apiKey: tenant.weatherKey },
+    crm: { apiKey: tenant.crmKey },
   },
 })
-
-await agent.generate({ prompt })
 ```
+
+- `contextSchema` が **型推論＋実行時検証**
+- `toolsContext` は **tool 名ごとに分離**
 </div>
 
 </div>
@@ -1133,7 +1141,7 @@ await agent.generate({ prompt })
 
 <div class="mt-2 text-sm opacity-90">
 
-`execute` の `context` に型推論が効く。ツールごとに必要な権限・API key を分離でき、WorkflowAgent では <strong>serializable な値</strong> として step 境界を越えやすい。
+もう1つの v6 流「クロージャで包む」は、捕まえた値が <code v-pre>'use step'</code> の serialization 境界を越えられず **workflow では破綻する**。`toolsContext` は宣言された serializable データなので durable 実行と両立する。
 
 </div>
 
@@ -1144,20 +1152,34 @@ await agent.generate({ prompt })
 `inputSchema` は location などモデルが決める tool input、`contextSchema` は API key・tenant・権限などアプリ側の context を検証する。
 `tools: { weather }` は `tools: { weather: weather }` の省略記法で、ここで weather tool を Agent に登録する。
 同じコンストラクタの `toolsContext.weather` がこの登録名に対応し、検証済みの値が weather tool の `execute` 第2引数 `context` に渡る。
-`agent.generate()` は登録済み Agent を実行するため、ここでは prompt だけを渡す。
 `toolsContext` は tool 名ごとに分かれているので、weather tool に渡した key を別の tool が受け取らない。
 型推論だけでなく、contextSchema による runtime validation も行われる。
+
+Q&A 想定: 「マルチテナントで企業ごとに API key を変えるのは v6 でもできたのでは？」
+- できた。手段は2つ。experimental_context (型が unknown — 手動キャスト・検証なし・全 tool 共有) と、
+  request ごとに tool オブジェクトを作り直すクロージャ工場 (型は付くが静的定義を使い回せない)。
+- v7 の差分は能力ではなく: contextSchema の型＋実行時検証 / toolsContext の tool 名ごとの分離 /
+  durable 実行との両立。クロージャに捕まえた値は 'use step' の serialization 境界を越えられないため、
+  workflow の世界ではクロージャ工場は構造的に使えない。
+- tool セットそのものの出し分け (A 社に crm tool を見せない等) は toolsContext ではなく、
+  次のスライドの callOptionsSchema + prepareCall の領分。credential 注入と tool 出し分けは役割が別。
+- v7 には全 tool 共有の runtimeContext もあり (docs: runtime-and-tool-context)、
+  「共有して良い状態」と「tool 固有の secret」を使い分けられる。
 
 WorkflowAgent では context が step 境界を越えて保存・replay され得るので、plain object など serializable な値にする。
 DB client や SDK client を context に入れず、ID・region・設定値を渡し、client は step 内で作り直す。
 
 注意点として、型安全は secret 管理そのものを保証しない。
 context は prompt に混ぜず、telemetry に含める項目も allowlist する。
-event log に credential を残したくない設計では、secret を step 内の環境変数や secret store から解決する。
+event log への credential 永続化は、公式は World の暗号化 (step 入出力は AES-256-GCM・run ごとの鍵) を
+根拠に「渡しても安全」という立場。それでも残したくない設計なら、
+secret を step 内の環境変数や secret store から解決する (defense-in-depth)。
 
 Sources:
 https://vercel.com/blog/ai-sdk-7
 https://vercel.com/kb/guide/durableagent-to-workflowagent
+https://ai-sdk.dev/docs/ai-sdk-core/runtime-and-tool-context
+https://workflow-sdk.dev/docs/how-it-works/encryption
 -->
 
 ---
