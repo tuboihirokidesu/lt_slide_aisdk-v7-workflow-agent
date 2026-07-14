@@ -1105,9 +1105,8 @@ execute: async (input, opts) => {
 }
 ```
 
-- テナントごとの注入は **v6 でも書ける**
-- ただし型は `unknown` — キャスト頼み、検証なし
-- weather 用の key が **crm からも見える**
+- v6 でも注入できるが、型は `unknown`・検証なし
+- 共有 context: **crm から weather key が見える**
 </div>
 
 <div>
@@ -1122,17 +1121,15 @@ const weather = tool({
 })
 
 const agent = new ToolLoopAgent({
-  model,
-  tools: { weather, crm },
-  toolsContext: {
-    weather: { apiKey: tenant.weatherKey },
-    crm: { apiKey: tenant.crmKey },
-  },
+  model, tools: { weather, crm },
+  toolsContext: { weather: { apiKey: tenant.key } },
 })
 ```
 
-- `contextSchema` が **型推論＋実行時検証**
-- `toolsContext` は **tool 名ごとに分離**
+<div class="mt-2 text-sm leading-snug">
+<code v-pre>contextSchema</code>: <strong>型推論＋実行時検証</strong><br>
+<code v-pre>toolsContext</code>: <strong>tool 名ごとに分離</strong>
+</div>
 </div>
 
 </div>
@@ -1141,7 +1138,7 @@ const agent = new ToolLoopAgent({
 
 <div class="mt-2 text-sm opacity-90">
 
-もう1つの v6 流「クロージャで包む」は、捕まえた値が <code v-pre>'use step'</code> の serialization 境界を越えられず **workflow では破綻する**。`toolsContext` は宣言された serializable データなので durable 実行と両立する。
+Workflow では closure ではなく、step を越せる serializable な <code v-pre>toolsContext</code> を使う。
 
 </div>
 
@@ -1264,31 +1261,27 @@ layout: default
 
 **Agent ＝ 関数** と見立てる: `callOptionsSchema` が**引数の型**、`prepareCall` が引数から**設定を組み立てる**処理
 
-```ts {all|3-7|8-14|17-21}
+```ts {all|3-6|7-11|14-17}
 const supportAgent = new ToolLoopAgent({
   model,
-  // この Agent が呼び出しごとに受け取る「引数」の型を宣言
   callOptionsSchema: z.object({
     userId: z.string(),
     accountType: z.enum(['free', 'pro', 'enterprise']),
   }),
-  // 実行直前に毎回呼ばれる。options = 検証済みの呼び出し引数、
-  // settings = Agent の静的設定。戻り値が「今回の実行に使う設定」
   prepareCall: ({ options, ...settings }) => ({
     ...settings,
-    instructions: `${settings.instructions}\nAccount: ${options.accountType}`,
-    // model や tools もこの戻り値で差し替えられる
+    instructions:
+      `${settings.instructions}\nAccount: ${options.accountType}`,
   }),
 })
 
-// options は callOptionsSchema で型チェック＋実行時検証される
 await supportAgent.generate({
   prompt: 'How do I upgrade?',
   options: { userId: 'u_123', accountType: 'pro' },
 })
 ```
 
-モデル選択・instructions・tools を **リクエスト単位で型安全に** 切り替えられる。credential 注入は前ページの `toolsContext`、**tool の出し分け・モデル切替はここ**
+`options` で model / instructions / tools を呼び出し単位に切り替える。credential は `toolsContext` で渡す。
 
 <!--
 実行順で説明すると:
