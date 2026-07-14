@@ -1262,28 +1262,54 @@ layout: default
 
 # Agent の動的設定: callOptionsSchema + prepareCall
 
-エージェントに **「ランタイム入力のスキーマ」** を持たせる
+**Agent ＝ 関数** と見立てる: `callOptionsSchema` が**引数の型**、`prepareCall` が引数から**設定を組み立てる**処理
 
-```ts {all|3-6|7-10|14-17}
+```ts {all|3-7|8-14|17-21}
 const supportAgent = new ToolLoopAgent({
   model,
+  // この Agent が呼び出しごとに受け取る「引数」の型を宣言
   callOptionsSchema: z.object({
     userId: z.string(),
     accountType: z.enum(['free', 'pro', 'enterprise']),
   }),
+  // 実行直前に毎回呼ばれる。options = 検証済みの呼び出し引数、
+  // settings = Agent の静的設定。戻り値が「今回の実行に使う設定」
   prepareCall: ({ options, ...settings }) => ({
     ...settings,
     instructions: `${settings.instructions}\nAccount: ${options.accountType}`,
+    // model や tools もこの戻り値で差し替えられる
   }),
 })
 
+// options は callOptionsSchema で型チェック＋実行時検証される
 await supportAgent.generate({
   prompt: 'How do I upgrade?',
   options: { userId: 'u_123', accountType: 'pro' },
 })
 ```
 
-モデル選択・instructions・tools を **リクエスト単位で型安全に** 切り替えられる
+モデル選択・instructions・tools を **リクエスト単位で型安全に** 切り替えられる。credential 注入は前ページの `toolsContext`、**tool の出し分け・モデル切替はここ**
+
+<!--
+実行順で説明すると:
+1. generate({ prompt, options }) が呼ばれる
+2. options を callOptionsSchema で検証 (型推論もここから効く)
+3. prepareCall({ options, ...settings }) が呼ばれ、静的設定 + options から今回の設定を組み立てる
+4. その戻り値の設定で agent loop が回る
+
+ユースケース:
+- accountType で instructions / model を切り替える (enterprise だけ高い model 等)
+- テナントごとに tools を出し分ける (A 社には crm tool を渡さない等)。
+  前ページの toolsContext (credential 注入) と役割が分かれている点を強調する。
+
+似た名前の prepareStep との違い:
+- prepareCall = 呼び出し全体の設定を実行前に1回組み立てる
+- prepareStep = loop の step ごとに毎回呼ばれ、途中で model や tools を切り替える (Loop Control の領分)
+
+Source:
+https://ai-sdk.dev/docs/agents/configuring-call-options
+-->
+
 
 ---
 layout: default
