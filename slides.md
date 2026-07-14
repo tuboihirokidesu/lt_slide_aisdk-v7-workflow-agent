@@ -903,6 +903,21 @@ queue の役割を聞かれたら:
 - Vercel World では Vercel Queues (managed, at-least-once) が __wkf_step_* / __wkf_workflow_* topic で
   step.func / flow.func を起動する。Postgres World では graphile-worker、Local World は in-memory。
 
+Temporal を聞かれたら:
+- OSS の durable execution 基盤であり、開発企業 (Temporal Technologies) の名前でもある。
+- AWS SWF を作った Maxim Fateev / Samar Abbas が Uber で Cadence を作り、2019 年に fork して創業。
+  Netflix / Snap / Coinbase / Datadog などが本番採用を公表。マネタイズはマネージド版の Temporal Cloud。
+- 概念対応はスライドの v-click のとおり (Workflow / Activity / Event History / Task Queue / Worker)。
+
+「Temporal と何が違う？」への答えの軸は運用モデル:
+- Temporal は Temporal Server (クラスタ) ＋ 自前の常駐 Worker プロセスを回す前提の重量級。
+  Go / Java / TypeScript / Python / .NET の多言語 SDK と成熟したエコシステムを持つ。
+- Workflow DevKit は同じ実行モデルを serverless / バンドラ統合 (directive) に寄せた軽量な再解釈。
+  常駐 worker なしに queue が function invocation を駆動する。
+  Postgres World を選ぶと graphile-worker 常駐になり、Temporal 的な運用に近づく。
+- 一言でまとめるなら「Temporal は本家で重装備、Workflow DevKit はその実行モデルを
+  JS / serverless の DX に翻訳したもの」。
+
 Sources:
 https://aws.amazon.com/about-aws/whats-new/2012/02/21/introducing-amazon-simple-workflow/
 https://aws.amazon.com/blogs/aws/new-aws-step-functions-build-distributed-applications-using-visual-workflows/
