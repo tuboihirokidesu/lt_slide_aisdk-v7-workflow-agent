@@ -863,6 +863,50 @@ layout: default
 
 </v-click>
 
+<!--
+各 bullet の口頭補足:
+- 静的解析可能: directive は関数/モジュール先頭の文字列リテラルという「位置が固定」の構文なので、
+  パース段階で確実に拾える。Workflow SDK では @workflow/swc-plugin が 'use workflow' / 'use step' を検出し、
+  同じソースを build target ごとに3モードで変換する
+  (step mode: 本体維持+ runtime 登録 / workflow mode: step 呼び出しを durable proxy に置換 /
+   client mode: workflow 本体を error throw に置換)。
+- runtime inert: 仕様上は「文字列を評価するだけの ExpressionStatement」= no-op。
+  ただし正確には「コンパイラが無ければ inert」。plugin があれば意味が一変する。
+- minify を生き残る: terser 等の minifier は directive prologue を保持する(コメントは消える)。
+  コメントベースのアノテーションとの決定的な差。
+- 関数シグネチャを変えない: decorator は TC39 でも class / method 用で、素の関数には付けられない。
+- モジュール境界を明示: import ベースの登録と違い、関数自身が自分の実行環境を宣言する。
+
+Q&A 想定: 「なぜ decorator や高階関数 (defineWorkflow(fn)) じゃないの？」
+- decorator: 素の関数に使えない。runtime 変換なので結局ビルド統合が要る。
+- 高階関数: Temporal(worker 登録) や Inngest(createFunction) が実際にこの方式。
+  ただし wrapper は re-export / alias で静的解析が難しくなり、型やスタックトレースも変わる。
+  directive は「関数の中身より先に、パーサが確実に見つけられる」のが利点。
+- 設定ファイル: 関数単位の境界宣言には粒度が合わない。
+
+Q&A 想定: 「標準じゃないのに大丈夫？」
+- ECMAScript 仕様は Directive Prologue の意味を実装が拡張することを明示的に許している
+  ("Implementations may define implementation specific meanings for ExpressionStatements...
+   which occur in a Directive Prologue" — ECMA-262 11.2.1 Note)。
+  つまり「仕様が意図的に空けた拡張ポイント」であって、仕様違反のハックではない。
+- リスクは tooling 側: linter / test runner / 他の bundler が知らない directive を無視するため、
+  plugin 未設定のビルドでは黙って普通の関数になる(サイレントな no-op)。
+  これが次のスライド「directive と runtime があって初めて durable」につながる。
+
+Q&A 想定: 「React は控えめにと言うのに、なぜ Vercel は増やす？」
+- React Compiler の 'use memo' / 'use no memo' は最適化設定の per-function override = escape hatch。
+  project レベル設定が正で、directive は例外処理。
+- 'use client' / 'use server' / 'use workflow' は意味論的な「境界の宣言」で、
+  性質上 project レベル設定では表現できない(どの関数がどちら側かは関数ごとにしか決まらない)。
+- つまり「hint 系 directive は控えめに、boundary 系 directive は必然」と読み分けると、
+  React の警告と Vercel の多用は矛盾しない。
+
+Sources:
+https://tc39.es/ecma262/multipage/ecmascript-language-source-code.html#sec-directive-prologues-and-the-use-strict-directive
+https://workflow-sdk.dev/docs/how-it-works/code-transform
+https://react.dev/reference/react-compiler/directives
+-->
+
 ---
 layout: default
 ---
